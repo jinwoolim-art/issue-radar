@@ -2,6 +2,8 @@
     python -m radar scan       # 출처 전부 스캔 → out/latest.md, out/latest.json
     python -m radar pricing    # 요금 페이지 변경 확인
     python -m radar all        # 둘 다
+    python -m radar yt "주제" ["검색어2" ...]   # 유튜브 리서치: 영상 목록 + 자막 → data/research/
+    python -m radar yt-retry                    # 차단 등으로 못 받은 자막만 이어 받기 (가장 최근 리서치)
 """
 import sys
 from pathlib import Path
@@ -9,7 +11,7 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-from . import pricing, report, store
+from . import pricing, report, research, store
 from .score import build_clusters
 from .sources import COLLECTORS, MissingKey
 
@@ -58,6 +60,17 @@ def check_pricing(cfg):
 
 def main():
     cmd = sys.argv[1] if len(sys.argv) > 1 else "all"
+    if cmd == "yt":
+        if len(sys.argv) < 3:
+            sys.exit('사용법: python -m radar yt "주제" ["추가 검색어" ...]')
+        topic = sys.argv[2]
+        out = research.youtube(topic, queries=[topic] + sys.argv[3:])
+        print(f"유튜브 리서치 완료 → {out}/digest.md")
+        return
+    if cmd == "yt-retry":
+        out = research.retry()
+        print(f"→ {out}/digest.md")
+        return
     cfg = load_config()
     if cmd in ("scan", "all"):
         print("[이슈 스캔]")
