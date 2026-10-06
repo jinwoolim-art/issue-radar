@@ -75,6 +75,7 @@ sources:
     regions: [KR, US]
     category_id: "28"   # 과학기술
     queries: ["AI 신기능", "ChatGPT", "Claude AI"]
+    search_every_hours: 3   # 검색 1회=100유닛 → 3시간마다만 (하루 약 2,400유닛)
     base: 10
     ai_filter: true
 

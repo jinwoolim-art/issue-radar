@@ -1,6 +1,8 @@
 """B등급 수집기: 무료지만 키/계정이 필요한 출처 (Reddit, YouTube). 키가 없으면 건너뛴다."""
+import json
 import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from .. import http
 from ..models import Item, now_utc
@@ -48,6 +50,28 @@ def reddit(src) -> list[Item]:
     return items
 
 
+SEARCH_CACHE = Path(__file__).resolve().parents[2] / "data" / "youtube_search.json"
+
+
+def _searched_ids(api, key, src) -> list[str]:
+    """키워드 검색(최근 24시간). 검색은 1회 100유닛이라 search_every_hours 마다만 하고,
+    그 사이에는 지난번에 찾은 영상 목록을 재사용한다 (조회수는 videos 호출로 매번 갱신, 1유닛)."""
+    cache = json.loads(SEARCH_CACHE.read_text(encoding="utf-8")) if SEARCH_CACHE.exists() else {}
+    hours = src.get("search_every_hours", 3)
+    if cache and now_utc() - datetime.fromisoformat(cache["at"]) < timedelta(hours=hours):
+        return cache["ids"]
+    after = (now_utc() - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ids = []
+    for q in src.get("queries", []):
+        r = http.get(f"{api}/search", params={
+            "part": "id", "q": q, "type": "video", "order": "viewCount",
+            "publishedAfter": after, "maxResults": 25, "key": key}).json()
+        ids += [v["id"]["videoId"] for v in r.get("items", [])]
+    SEARCH_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    SEARCH_CACHE.write_text(json.dumps({"at": now_utc().isoformat(), "ids": ids}), encoding="utf-8")
+    return ids
+
+
 def youtube(src) -> list[Item]:
     key = _env("YOUTUBE_API_KEY")
     api = "https://www.googleapis.com/youtube/v3"
@@ -58,13 +82,7 @@ def youtube(src) -> list[Item]:
             "part": "id", "chart": "mostPopular", "regionCode": region,
             "videoCategoryId": src.get("category_id", "28"), "maxResults": 50, "key": key}).json()
         video_ids += [v["id"] for v in r.get("items", [])]
-    # 키워드 검색(최근 24시간) — 검색 1회 100유닛이므로 몇 개만
-    after = (now_utc() - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    for q in src.get("queries", []):
-        r = http.get(f"{api}/search", params={
-            "part": "id", "q": q, "type": "video", "order": "viewCount",
-            "publishedAfter": after, "maxResults": 25, "key": key}).json()
-        video_ids += [v["id"]["videoId"] for v in r.get("items", [])]
+    video_ids += _searched_ids(api, key, src)
     video_ids = list(dict.fromkeys(video_ids))
     items = []
     for i in range(0, len(video_ids), 50):

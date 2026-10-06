@@ -32,7 +32,7 @@ cp .env.example .env                           # 키 채우기 (없어도 A등�
 1. https://console.cloud.google.com → 프로젝트 선택(또는 새로 만들기)
 2. "API 및 서비스 → 라이브러리" → `YouTube Data API v3` 사용 설정
 3. "사용자 인증 정보 → 사용자 인증 정보 만들기 → API 키" → `.env` 의 `YOUTUBE_API_KEY`
-4. 하루 무료 10,000유닛. 이 레이더는 스캔 1회에 약 300유닛 사용 (검색 3회 × 100)
+4. 하루 무료 10,000유닛. 검색(1회 100유닛)은 3시간마다만 해서, 30분 주기로 돌려도 하루 약 3,000유닛
 
 **Reddit API 앱**
 1. 레딧 로그인 → https://www.reddit.com/prefs/apps → 맨 아래 "create another app"
