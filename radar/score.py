@@ -23,6 +23,7 @@ STOPWORDS = {"the", "and", "for", "with", "from", "that", "this", "your", "you",
 STOPWORDS |= {a.lower() for v in _ENT["companies"].values() for a in v if a.isascii() and " " not in a}
 STOPWORDS |= {a.lower() for v in _ENT["products"].values() for a in v["aliases"] if a.isascii() and " " not in a}
 _GENERAL = set(_ENT.get("general_companies", []))
+AD_LINES = {"AI 광고 상품", "AI 검색 노출(GEO)", "AI 기업 홍보"}
 
 
 def _matcher(alias: str):
@@ -81,7 +82,8 @@ def item_heat(it: Item, src: dict, prev: Item | None) -> float:
         h += 5 * math.log1p(max(0.0, it.metric - prev.metric))
     if it.published_at:
         age_h = (now_utc() - it.published_at).total_seconds() / 3600
-        h *= max(0.15, math.exp(-max(age_h, 0) / 36))
+        tau = it.extra.get("decay_hours", 36)   # 꾸준히 쌓이는 라인(GEO 등)은 키워드 감시에서 더 길게 지정
+        h *= max(0.15, math.exp(-max(age_h, 0) / tau))
     else:
         h *= 0.5
     return h
@@ -140,11 +142,25 @@ def build_clusters(items: list[Item], sources: dict, prev: dict[str, Item]) -> l
         official = any(sources[it.source].get("official") for it, _ in cl.items)
         cl.heat = sum(h * w for h, w in zip(heats, (1, 0.5, 0.3, 0.2, 0.1))) \
             + 12 * (n_sources - 1) + (8 if official else 0)
-        text = " ".join(f"{it.title} {it.summary}" for it, _ in cl.items).lower()
+        # 영상 설명란은 해시태그·광고문구 도배라 제목만 본다
+        text = " ".join(it.title if sources[it.source].get("ai_filter_title_only") else f"{it.title} {it.summary}"
+                        for it, _ in cl.items).lower()
         hits = {name: sum(m(text) for m in ms) for name, ms in _CORNERS.items()}
-        best = max(hits, key=hits.get)
-        if hits[best] >= 1:
-            cl.corner = best
+        # 광고 3라인은 서로 단어가 겹치므로 우선순위로 가른다:
+        # 광고 상품 단서 > 홍보(캠페인·광고 영상, AI 회사 등장 시) > GEO > 키워드 감시 라인 > 일반 코너
+        lines = [it.extra.get("line") for it, _ in cl.items if it.extra.get("line")]
+        general = {k: v for k, v in hits.items() if k not in AD_LINES}
+        if hits.get("AI 광고 상품"):
+            cl.corner = "AI 광고 상품"
+        elif hits.get("AI 기업 홍보") and (cl.products or cl.companies - _GENERAL):
+            cl.corner = "AI 기업 홍보"
+        # GEO 단어(ai mode 등)는 구글 제품 소개글에도 나오므로 감시 키워드로 왔거나 단서가 2개 이상일 때만
+        elif hits.get("AI 검색 노출(GEO)") and (lines or hits["AI 검색 노출(GEO)"] >= 2):
+            cl.corner = "AI 검색 노출(GEO)"
+        elif lines:
+            cl.corner = max(set(lines), key=lines.count)
+        elif general and max(general.values()) >= 1:
+            cl.corner = max(general, key=general.get)
 
     clusters.sort(key=lambda c: -c.heat)
     top = clusters[0].heat if clusters else 1

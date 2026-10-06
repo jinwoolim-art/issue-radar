@@ -49,12 +49,19 @@ products:
 general_companies: [Google, Meta, Microsoft, Nvidia, Apple, Amazon, Naver, Kakao, Samsung]
 
 # 업체 이름이 없어도 AI 관련 글로 볼 일반 키워드 (ai_filter 출처용)
-ai_keywords: [ai, llm, gpt, agent, 에이전트, 인공지능, 생성형, 모델, model, prompt, 프롬프트,
+ai_keywords: [ai, llm, gpt, agent, 에이전트, 인공지능, 생성형, ai 모델, ai model, prompt, 프롬프트,
               transformer, diffusion, rag, mcp, inference, 추론, fine-tun, 파인튜닝, chatbot, 챗봇, 딥러닝, machine learning]
 
 # 코너 분류 규칙 (제목·요약에 포함되면 해당 코너 후보)
 corners:
   요금·프로모션: [pricing, price, plan, plans, subscription, subscriptions, tier, free tier, discount, promo, 요금, 가격, 무료, 할인, 구독, 프로모션, 크레딧, credit, 인상, 인하]
   사용 스킬: [how to, tips, guide, tutorial, workflow, prompt, 팁, 활용, 사용법, 꿀팁, 방법, 가이드, 프롬프트]
-  AI 광고·마케팅: [ads, ad, advertising, advertiser, advertisers, sponsored, marketing, marketer, campaign, brand, geo, aeo, 광고, 광고주, 마케팅, 캠페인, 브랜드, 검색광고, 퍼포먼스, 노출, 애드]
+  # ① AI가 파는 광고 상품 (ChatGPT Ads 등 광고 플랫폼 사업)
+  AI 광고 상품: [chatgpt ads, ads manager, ad manager, 애드 매니저, sponsored, cpc, advertiser, advertisers, 광고주,
+               ad format, ad revenue, 광고 매출, 광고 상품, 광고 플랫폼, 시각적 광고, image ads, ads in chatgpt, ai mode ads]
+  # ② AI 검색에서 매장·브랜드가 어떻게 노출·추천되나 (GEO, 소상공인)
+  AI 검색 노출(GEO): [geo, aeo, generative engine optimization, ai search visibility, ai overviews, ai mode, citation, cited,
+               생성형 검색, ai 검색, 검색 최적화, ai 추천, 챗gpt 추천, 내 가게, 소상공인, 자영업, 스마트플레이스, ai 브리핑, 상품정보]
+  # ③ AI 회사가 자기를 알리는 광고·캠페인 (홍보 영상, TV 광고)
+  AI 기업 홍보: [brand campaign, commercial, super bowl, 광고 영상, 캠페인, tv 광고, 브랜드 광고, 모델 기용, 광고 모델]
   업체 소개: [launch, startup, raises, funding, introducing, 출시, 투자, 유치, 스타트업, 공개, 선보]

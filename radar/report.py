@@ -10,6 +10,7 @@ from .score import Cluster
 OUT = Path(__file__).resolve().parent.parent / "out"
 KST = timezone(timedelta(hours=9))
 _HANGUL = re.compile(r"[가-힣]")
+WATCH_LINES = {"AI 광고 상품", "AI 검색 노출(GEO)", "AI 기업 홍보"}  # 탐님 집중 라인은 10개씩 (사람이 골라야 하는 라인)
 
 
 def _cluster_json(rank, cl: Cluster, sources):
@@ -51,7 +52,7 @@ def write(clusters: list[Cluster], sources: dict, status: dict, top_n=10) -> Pat
     }
     for i, cl in enumerate(clusters):
         picks = data["by_corner"].setdefault(cl.corner, [])
-        if len(picks) < 3:
+        if len(picks) < (10 if cl.corner in WATCH_LINES else 3):
             picks.append(_cluster_json(i + 1, cl, sources))
     (OUT / f"{stamp:%Y%m%d-%H%M}.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     (OUT / "latest.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -72,7 +73,7 @@ def write(clusters: list[Cluster], sources: dict, status: dict, top_n=10) -> Pat
             lines.append(f"- [{it['source']}] [{it['title']}]({it['url']}){m}{c}")
         lines.append("")
     lines.append("---")
-    lines.append("# 코너별 후보 Top 3")
+    lines.append("# 코너별 후보 (집중 라인 10개, 나머지 3개)")
     for corner, picks in data["by_corner"].items():
         lines.append(f"\n### {corner}")
         for iss in picks:

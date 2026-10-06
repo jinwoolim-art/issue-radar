@@ -60,7 +60,26 @@ sources:
     base: 8
     ai_filter: true
 
-  # ── AI 광고·마케팅 라인 (광고 매체 → AI 관련 기사만) ──
+  # ── 콘텐츠 라인 키워드 감시 (구글 뉴스 검색 피드, 무료) ──
+  # line: 이 키워드로 들어온 글은 해당 코너로 바로 분류
+  - id: gnews_watch
+    name: 구글뉴스 키워드
+    type: gnews
+    tier: A
+    days: 3
+    per_query: 15
+    base: 12
+    # 돈 내고 올리는 보도자료 배포처 — 업체 홍보문이라 제외
+    block_publishers: [EIN News, Business Wire, BusinessWire, PR Newswire, GlobeNewswire, FinancialContent,
+                       StreetInsider, Accesswire, Newsfile, openPR, 뉴스와이어]
+    queries:
+      - {q: "챗GPT 광고", lang: ko, line: AI 광고 상품}
+      - {q: '"ChatGPT ads" OR "ChatGPT advertising"', lang: en, line: AI 광고 상품}
+      - {q: '"생성형 검색 최적화" OR "GEO 마케팅" OR "AI 검색 최적화"', lang: ko, line: AI 검색 노출(GEO), days: 7, decay_hours: 168}
+      - {q: '"챗GPT에" 물었더니 브랜드 OR "AI 검색" 노출 브랜드 OR "AI 브리핑" 노출', lang: ko, line: AI 검색 노출(GEO), days: 7, decay_hours: 168}
+      - {q: '"generative engine optimization" OR "AI search visibility"', lang: en, line: AI 검색 노출(GEO), days: 7, decay_hours: 168}
+
+  # ── 광고·마케팅 업계 매체 (AI 관련 기사만) ──
   - id: digiday
     name: Digiday
     type: rss

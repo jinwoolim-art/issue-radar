@@ -3,7 +3,7 @@ import re
 import time
 from calendar import timegm
 from datetime import datetime, timedelta, timezone
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 import feedparser
 from bs4 import BeautifulSoup
@@ -29,6 +29,25 @@ def rss(src) -> list[Item]:
             published_at=datetime.fromtimestamp(timegm(t), timezone.utc) if t else None,
             summary=_clean(e.get("summary", "")),
         ))
+    return items
+
+
+def gnews(src) -> list[Item]:
+    """구글 뉴스 키워드 검색 피드 — 콘텐츠 라인별 키워드 감시.
+    키워드가 이미 라인을 정하므로 extra['line'] 에 박아 두고 코너 분류에서 우선한다."""
+    items = []
+    for q in src["queries"]:
+        hl = "hl=ko&gl=KR&ceid=KR:ko" if q.get("lang", "ko") == "ko" else "hl=en-US&gl=US&ceid=US:en"
+        url = f"https://news.google.com/rss/search?q={quote(q['q'])}+when:{q.get('days', src.get('days', 3))}d&{hl}"
+        for it in rss({"id": src["id"], "url": url})[:src.get("per_query", 15)]:
+            title, _, publisher = it.title.rpartition(" - ")
+            if any(b.lower() in publisher.lower() for b in src.get("block_publishers", [])):
+                continue
+            it.title = title or it.title
+            it.summary = ""   # 구글 뉴스 요약은 매체 목록이라 쓸모없음
+            it.extra = {"line": q["line"], "publisher": publisher, "query": q["q"],
+                        "decay_hours": q.get("decay_hours", 36)}
+            items.append(it)
     return items
 
 
