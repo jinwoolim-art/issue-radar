@@ -1,0 +1,56 @@
+# AI 업체·제품 사전 — 한글/영문 표기를 하나로 묶어 "같은 이슈"를 알아봅니다.
+# product 는 company 보다 구체적이라, 같은 product 를 언급하면 출처가 달라도 한 이슈로 묶습니다.
+
+companies:
+  OpenAI: [openai, 오픈ai, 오픈에이아이]
+  Anthropic: [anthropic, 앤트로픽, 앤스로픽]
+  Google: [google, deepmind, 구글, 딥마인드]
+  Meta: [meta, 메타]
+  Microsoft: [microsoft, 마이크로소프트]
+  Nvidia: [nvidia, 엔비디아]
+  xAI: [xai, 일론 머스크]
+  Mistral: [mistral, 미스트랄]
+  DeepSeek: [deepseek, 딥시크]
+  Alibaba: [alibaba, 알리바바]
+  Apple: [apple, 애플]
+  Amazon: [amazon, aws, 아마존]
+  Naver: [naver, 네이버, 하이퍼클로바]
+  Kakao: [kakao, 카카오]
+  Samsung: [samsung, 삼성]
+  LG: [lg ai, 엑사원, exaone]
+  Upstage: [upstage, 업스테이지, 솔라]
+  HuggingFace: [hugging face, huggingface, 허깅페이스]
+  Perplexity: [perplexity, 퍼플렉시티]
+  Midjourney: [midjourney, 미드저니]
+  Runway: [runway, 런웨이]
+  ElevenLabs: [elevenlabs, 일레븐랩스]
+  Cursor: [cursor, 커서]
+
+products:
+  ChatGPT: {company: OpenAI, aliases: [chatgpt, 챗gpt, 챗지피티]}
+  GPT: {company: OpenAI, aliases: [gpt-5, gpt-4, gpt 5, gpt5, o3, o4]}
+  Sora: {company: OpenAI, aliases: [sora, 소라]}
+  Codex: {company: OpenAI, aliases: [codex, 코덱스]}
+  Claude: {company: Anthropic, aliases: [claude, 클로드]}
+  Claude Code: {company: Anthropic, aliases: [claude code, 클로드 코드]}
+  Gemini: {company: Google, aliases: [gemini, 제미나이, 제미니]}
+  Veo: {company: Google, aliases: [veo]}
+  NotebookLM: {company: Google, aliases: [notebooklm, 노트북lm]}
+  Llama: {company: Meta, aliases: [llama, 라마]}
+  Grok: {company: xAI, aliases: [grok, 그록]}
+  Qwen: {company: Alibaba, aliases: [qwen, 큐웬]}
+  Copilot: {company: Microsoft, aliases: [copilot, 코파일럿]}
+  Mistral Large: {company: Mistral, aliases: [mistral large]}
+  Ollama: {company: null, aliases: [ollama, 올라마]}
+  ComfyUI: {company: null, aliases: [comfyui]}
+  Stable Diffusion: {company: null, aliases: [stable diffusion, sdxl, flux]}
+
+# 업체 이름이 없어도 AI 관련 글로 볼 일반 키워드 (ai_filter 출처용)
+ai_keywords: [ai, llm, gpt, agent, 에이전트, 인공지능, 생성형, 모델, model, prompt, 프롬프트,
+              transformer, diffusion, rag, mcp, inference, 추론, fine-tun, 파인튜닝, chatbot, 챗봇, 딥러닝, machine learning]
+
+# 코너 분류 규칙 (제목·요약에 포함되면 해당 코너 후보)
+corners:
+  요금·프로모션: [pricing, price, plan, plans, subscription, subscriptions, tier, free tier, discount, promo, 요금, 가격, 무료, 할인, 구독, 프로모션, 크레딧, credit, 인상, 인하]
+  사용 스킬: [how to, tips, guide, tutorial, workflow, prompt, 팁, 활용, 사용법, 꿀팁, 방법, 가이드, 프롬프트]
+  업체 소개: [launch, startup, raises, funding, introducing, 출시, 투자, 유치, 스타트업, 공개, 선보]

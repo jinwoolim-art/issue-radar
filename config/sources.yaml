@@ -1,0 +1,92 @@
+# 출처 목록 — 코드 수정 없이 여기서 켜고 끄고 추가합니다.
+# tier: A=무료 공개 / B=계정·키 필요(무료) / C=유료
+# base: 출처 자체의 신뢰·중요도 가중치 (반응 수치가 없는 출처는 이 값이 기본 점수)
+
+channel: ai
+
+sources:
+  - id: openai_blog
+    name: OpenAI 공식
+    type: rss
+    tier: A
+    url: https://openai.com/news/rss.xml
+    base: 30
+    official: true
+
+  - id: google_ai_blog
+    name: Google AI 공식
+    type: rss
+    tier: A
+    url: https://blog.google/technology/ai/rss/
+    base: 25
+    official: true
+
+  - id: anthropic_news
+    name: Anthropic 공식
+    type: anthropic_news
+    tier: A
+    url: https://www.anthropic.com/news
+    base: 30
+    official: true
+
+  - id: hackernews
+    name: Hacker News
+    type: hackernews
+    tier: A
+    min_points: 40
+    base: 10
+    ai_filter: true
+
+  - id: geeknews
+    name: GeekNews
+    type: rss
+    tier: A
+    url: https://news.hada.io/rss/news
+    base: 12
+    ai_filter: true
+
+  - id: aitimes
+    name: AI타임스
+    type: rss
+    tier: A
+    url: https://www.aitimes.com/rss/allArticle.xml
+    base: 10
+
+  - id: github_trending
+    name: GitHub 트렌딩
+    type: github_trending
+    tier: A
+    url: https://github.com/trending?since=daily
+    base: 8
+    ai_filter: true
+
+  - id: reddit
+    name: Reddit
+    type: reddit
+    tier: B
+    subreddits: [ChatGPT, ClaudeAI, OpenAI, LocalLLaMA, singularity, GeminiAI, StableDiffusion, artificial]
+    limit: 25
+    base: 10
+
+  - id: youtube
+    name: YouTube
+    type: youtube
+    tier: B
+    regions: [KR, US]
+    category_id: "28"   # 과학기술
+    queries: ["AI 신기능", "ChatGPT", "Claude AI"]
+    base: 10
+    ai_filter: true
+
+# 요금·프로모션 페이지 변경 감시 (트랙 2)
+pricing_pages:
+  - id: claude
+    name: Claude 요금
+    url: https://claude.com/pricing
+  - id: gemini
+    name: Gemini 요금
+    url: https://gemini.google/subscriptions/
+  - id: chatgpt
+    name: ChatGPT 요금
+    url: https://openai.com/chatgpt/pricing/
+    needs_browser: true   # 보안 차단 → 브라우저 방식 필요 (다음 단계)
