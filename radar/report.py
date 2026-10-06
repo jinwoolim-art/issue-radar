@@ -4,13 +4,19 @@ import re
 from datetime import timezone, timedelta
 from pathlib import Path
 
+import yaml
+
 from .models import now_utc
 from .score import Cluster
 
 OUT = Path(__file__).resolve().parent.parent / "out"
 KST = timezone(timedelta(hours=9))
 _HANGUL = re.compile(r"[가-힣]")
-WATCH_LINES = {"AI 광고 상품", "AI 검색 노출(GEO)", "AI 기업 홍보"}  # 탐님 집중 라인은 10개씩 (사람이 골라야 하는 라인)
+# 탐님 집중 라인(sources.yaml brief_lines)은 10개씩 — 점수보다 사람이 골라야 하는 라인
+BRIEF_LINES = yaml.safe_load((Path(__file__).resolve().parent.parent / "config" / "sources.yaml")
+                             .read_text(encoding="utf-8")).get("brief_lines", {})
+WATCH_LINES = set(BRIEF_LINES)
+_LINE_LABEL = {"active": "✅ 브리프 대상", "hold": "⏸ 보류 후보군 (수집만)"}
 
 
 def _cluster_json(rank, cl: Cluster, sources):
@@ -75,7 +81,8 @@ def write(clusters: list[Cluster], sources: dict, status: dict, top_n=10) -> Pat
     lines.append("---")
     lines.append("# 코너별 후보 (집중 라인 10개, 나머지 3개)")
     for corner, picks in data["by_corner"].items():
-        lines.append(f"\n### {corner}")
+        label = _LINE_LABEL.get(BRIEF_LINES.get(corner), "")
+        lines.append(f"\n### {corner}" + (f" — {label}" if label else ""))
         for iss in picks:
             lead = iss["items"][0]
             lines.append(f"- (종합 {iss['rank']}위 · {iss['score']}점) [{iss['headline_ko'] or iss['headline']}]({lead['url']})"

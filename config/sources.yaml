@@ -4,6 +4,12 @@
 
 channel: ai
 
+# 집중 콘텐츠 라인의 브리프 상태 — active: 브리프 대상 / hold: 수집은 계속, 브리프는 보류 후보군
+brief_lines:
+  AI 검색 노출(GEO): active
+  AI 광고 상품: hold
+  AI 기업 홍보: hold
+
 sources:
   - id: openai_blog
     name: OpenAI 공식
