@@ -4,9 +4,15 @@
 
 channel: ai
 
-# 집중 콘텐츠 라인의 브리프 상태 — active: 브리프 대상 / hold: 수집은 계속, 브리프는 보류 후보군
+# 콘텐츠 라인별 브리프 상태
+#   daily : 기본으로 매일 — "이거 좋은 정보네" 하고 저장·하트 누를 만한 것
+#   series: 시리즈로 이어가는 라인
+#   hold  : 수집은 계속, 브리프는 보류 후보군
 brief_lines:
-  AI 검색 노출(GEO): active
+  AI 소식: daily
+  사용 스킬: daily
+  요금·프로모션: daily
+  AI 검색 노출(GEO): series
   AI 광고 상품: hold
   AI 기업 홍보: hold
 

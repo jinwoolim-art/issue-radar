@@ -16,7 +16,7 @@ _HANGUL = re.compile(r"[가-힣]")
 BRIEF_LINES = yaml.safe_load((Path(__file__).resolve().parent.parent / "config" / "sources.yaml")
                              .read_text(encoding="utf-8")).get("brief_lines", {})
 WATCH_LINES = set(BRIEF_LINES)
-_LINE_LABEL = {"active": "✅ 브리프 대상", "hold": "⏸ 보류 후보군 (수집만)"}
+_LINE_LABEL = {"daily": "📌 기본 브리프 (매일)", "series": "🎬 시리즈", "hold": "⏸ 보류 후보군 (수집만)"}
 
 
 def _cluster_json(rank, cl: Cluster, sources):
