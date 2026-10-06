@@ -60,6 +60,55 @@ sources:
     base: 8
     ai_filter: true
 
+  # ── AI 광고·마케팅 라인 (광고 매체 → AI 관련 기사만) ──
+  - id: digiday
+    name: Digiday
+    type: rss
+    tier: A
+    url: https://digiday.com/feed/
+    base: 14
+    ai_filter: true
+
+  - id: adweek
+    name: Adweek
+    type: rss
+    tier: A
+    url: https://www.adweek.com/feed/
+    base: 12
+    ai_filter: true
+
+  - id: marketingdive
+    name: Marketing Dive
+    type: rss
+    tier: A
+    url: https://www.marketingdive.com/feeds/news/
+    base: 12
+    ai_filter: true
+
+  - id: madtimes
+    name: 매드타임스
+    type: rss
+    tier: A
+    url: https://www.madtimes.org/rss/allArticle.xml
+    base: 10
+    ai_filter: true
+
+  - id: thepr
+    name: 더피알
+    type: rss
+    tier: A
+    url: https://www.the-pr.co.kr/rss/allArticle.xml
+    base: 10
+    ai_filter: true
+
+  - id: brandbrief
+    name: 브랜드브리프
+    type: rss
+    tier: A
+    url: https://www.brandbrief.co.kr/rss/allArticle.xml
+    base: 10
+    ai_filter: true
+
   - id: reddit
     name: Reddit
     type: reddit

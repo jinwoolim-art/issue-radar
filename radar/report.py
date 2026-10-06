@@ -46,7 +46,13 @@ def write(clusters: list[Cluster], sources: dict, status: dict, top_n=10) -> Pat
         "channel": "ai",
         "sources_status": status,
         "issues": [_cluster_json(i + 1, cl, sources) for i, cl in enumerate(clusters[:top_n])],
+        # 종합 순위에서 밀려도 코너(콘텐츠 라인)마다 후보가 보이도록 코너별 상위 3개를 따로 뽑는다
+        "by_corner": {},
     }
+    for i, cl in enumerate(clusters):
+        picks = data["by_corner"].setdefault(cl.corner, [])
+        if len(picks) < 3:
+            picks.append(_cluster_json(i + 1, cl, sources))
     (OUT / f"{stamp:%Y%m%d-%H%M}.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     (OUT / "latest.json").write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -66,6 +72,14 @@ def write(clusters: list[Cluster], sources: dict, status: dict, top_n=10) -> Pat
             lines.append(f"- [{it['source']}] [{it['title']}]({it['url']}){m}{c}")
         lines.append("")
     lines.append("---")
+    lines.append("# 코너별 후보 Top 3")
+    for corner, picks in data["by_corner"].items():
+        lines.append(f"\n### {corner}")
+        for iss in picks:
+            lead = iss["items"][0]
+            lines.append(f"- (종합 {iss['rank']}위 · {iss['score']}점) [{iss['headline_ko'] or iss['headline']}]({lead['url']})"
+                         f" — {', '.join(iss['sources'])}")
+    lines.append("\n---")
     lines.append("출처 상태: " + " · ".join(f"{k} {v}" for k, v in status.items()))
     md = OUT / "latest.md"
     md.write_text("\n".join(lines), encoding="utf-8")
