@@ -16,7 +16,13 @@ _ENT = yaml.safe_load((CONFIG / "entities.yaml").read_text(encoding="utf-8"))
 
 STOPWORDS = {"the", "and", "for", "with", "from", "that", "this", "your", "you", "are", "how", "what",
              "new", "now", "its", "into", "show", "hn", "ask", "about", "has", "have", "will", "can",
-             "is", "of", "to", "in", "on", "a", "an", "by", "at", "as", "it", "be", "or", "vs"}
+             "is", "of", "to", "in", "on", "a", "an", "by", "at", "as", "it", "be", "or", "vs",
+             "january", "february", "march", "april", "may", "june", "july", "august", "september",
+             "october", "november", "december", "ai", "shorts"}
+# 업체·제품 이름 자체는 묶기 유사도 계산에서 뺀다 ("Claude" 만 같다고 같은 이슈가 아니므로)
+STOPWORDS |= {a.lower() for v in _ENT["companies"].values() for a in v if a.isascii() and " " not in a}
+STOPWORDS |= {a.lower() for v in _ENT["products"].values() for a in v["aliases"] if a.isascii() and " " not in a}
+_GENERAL = set(_ENT.get("general_companies", []))
 
 
 def _matcher(alias: str):
@@ -41,19 +47,22 @@ def tag(it: Item) -> tuple[set, set]:
     return products, companies
 
 
-def is_ai(it: Item) -> bool:
-    text = f"{it.title} {it.summary}".lower()
-    p, c = tag(it)
-    return bool(p or c) or any(m(text) for m in _AI_KW)
+def is_ai(it: Item, title_only=False) -> bool:
+    probe = Item(it.source, it.title, it.url, summary="" if title_only else it.summary)
+    text = f"{probe.title} {probe.summary}".lower()
+    p, c = tag(probe)
+    return bool(p or (c - _GENERAL)) or any(m(text) for m in _AI_KW)
 
 
 def _tokens(title: str) -> set:
     words = re.findall(r"[a-z0-9][a-z0-9.\-]*|[가-힣]{2,}", title.lower())
-    return {w.strip(".-") for w in words if len(w) >= 2 and w not in STOPWORDS}
+    words = (w.strip(".-") for w in words)
+    return {w for w in words if len(w) >= 2 and w not in STOPWORDS and not re.fullmatch(r"(19|20)\d\d|\d{1,2}", w)}
 
 
 def _versions(title: str) -> set:
-    return set(re.findall(r"\d+(?:\.\d+)+|\d+[a-z]+\b", title.lower()))
+    # 같은 제품을 언급할 때만 쓰이므로 "4" 같은 맨 숫자도 버전으로 본다 (Mistral Large 4)
+    return set(re.findall(r"\d+(?:\.\d+)+|\d+[a-z]+\b|(?<![\d.])\d{1,3}(?![\d.])", title.lower()))
 
 
 def _jaccard(a, b):
@@ -91,11 +100,12 @@ class Cluster:
 
     def accepts(self, it, p, c, toks, vers) -> bool:
         sim = _jaccard(toks, self.tokens)
-        if self.products & p and (self.versions & vers or sim >= 0.2):
+        shared = len(toks & self.tokens)
+        if self.products & p and shared >= 1 and (self.versions & vers or sim >= 0.2):
             return True
-        if self.companies & c and sim >= 0.25:
+        if self.companies & c and sim >= 0.25 and shared >= 2:
             return True
-        return sim >= 0.4
+        return sim >= 0.4 and shared >= 3
 
     def add(self, it, heat, p, c, toks, vers):
         self.items.append((it, heat))
@@ -109,7 +119,7 @@ def build_clusters(items: list[Item], sources: dict, prev: dict[str, Item]) -> l
     scored = []
     for it in items:
         src = sources[it.source]
-        if src.get("ai_filter") and not is_ai(it):
+        if src.get("ai_filter") and not is_ai(it, title_only=src.get("ai_filter_title_only", False)):
             continue
         scored.append((it, item_heat(it, src, prev.get(it.url))))
     scored.sort(key=lambda x: -x[1])

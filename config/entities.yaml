@@ -45,6 +45,9 @@ products:
   ComfyUI: {company: null, aliases: [comfyui]}
   Stable Diffusion: {company: null, aliases: [stable diffusion, sdxl, flux]}
 
+# AI 전업이 아닌 대기업 — 이름만 나왔다고 AI 글로 보지 않는다 (폰·가전 영상 걸러내기)
+general_companies: [Google, Meta, Microsoft, Nvidia, Apple, Amazon, Naver, Kakao, Samsung]
+
 # 업체 이름이 없어도 AI 관련 글로 볼 일반 키워드 (ai_filter 출처용)
 ai_keywords: [ai, llm, gpt, agent, 에이전트, 인공지능, 생성형, 모델, model, prompt, 프롬프트,
               transformer, diffusion, rag, mcp, inference, 추론, fine-tun, 파인튜닝, chatbot, 챗봇, 딥러닝, machine learning]

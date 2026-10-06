@@ -1,6 +1,7 @@
 """B등급 수집기: 무료지만 키/계정이 필요한 출처 (Reddit, YouTube). 키가 없으면 건너뛴다."""
 import json
 import os
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -56,20 +57,33 @@ SEARCH_CACHE = Path(__file__).resolve().parents[2] / "data" / "youtube_search.js
 def _searched_ids(api, key, src) -> list[str]:
     """키워드 검색(최근 24시간). 검색은 1회 100유닛이라 search_every_hours 마다만 하고,
     그 사이에는 지난번에 찾은 영상 목록을 재사용한다 (조회수는 videos 호출로 매번 갱신, 1유닛)."""
+    queries = src.get("queries", [])
     cache = json.loads(SEARCH_CACHE.read_text(encoding="utf-8")) if SEARCH_CACHE.exists() else {}
     hours = src.get("search_every_hours", 3)
-    if cache and now_utc() - datetime.fromisoformat(cache["at"]) < timedelta(hours=hours):
+    if (cache.get("queries") == queries
+            and now_utc() - datetime.fromisoformat(cache["at"]) < timedelta(hours=hours)):
         return cache["ids"]
     after = (now_utc() - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
     ids = []
-    for q in src.get("queries", []):
+    for q in queries:
         r = http.get(f"{api}/search", params={
-            "part": "id", "q": q, "type": "video", "order": "viewCount",
+            "part": "id", "q": q["q"], "type": "video", "order": "viewCount",
+            "regionCode": q.get("region", "KR"), "relevanceLanguage": q.get("lang", "ko"),
             "publishedAfter": after, "maxResults": 25, "key": key}).json()
         ids += [v["id"]["videoId"] for v in r.get("items", [])]
     SEARCH_CACHE.parent.mkdir(parents=True, exist_ok=True)
-    SEARCH_CACHE.write_text(json.dumps({"at": now_utc().isoformat(), "ids": ids}), encoding="utf-8")
+    SEARCH_CACHE.write_text(json.dumps({"at": now_utc().isoformat(), "queries": queries, "ids": ids}),
+                            encoding="utf-8")
     return ids
+
+
+# 한국어·영어 외 문자(키릴·아랍·태국·힌디, 한글 없는 한자) 제목은 채널 대상이 아니라 제외
+_FOREIGN = re.compile(r"[Ѐ-ӿ؀-ۿ฀-๿ऀ-ॿ]")
+_HAN, _HANGUL = re.compile(r"[一-鿿]"), re.compile(r"[가-힣]")
+
+
+def _foreign(title: str) -> bool:
+    return bool(_FOREIGN.search(title) or (_HAN.search(title) and not _HANGUL.search(title)))
 
 
 def youtube(src) -> list[Item]:
@@ -90,6 +104,8 @@ def youtube(src) -> list[Item]:
             "part": "snippet,statistics", "id": ",".join(video_ids[i:i + 50]), "key": key}).json()
         for v in r.get("items", []):
             sn, st = v["snippet"], v.get("statistics", {})
+            if _foreign(sn["title"]):
+                continue
             items.append(Item(
                 source=src["id"],
                 title=sn["title"],

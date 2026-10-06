@@ -74,7 +74,11 @@ sources:
     tier: B
     regions: [KR, US]
     category_id: "28"   # 과학기술
-    queries: ["AI 신기능", "ChatGPT", "Claude AI"]
+    ai_filter_title_only: true   # 영상 설명란은 해시태그 도배가 많아 제목만 본다
+    queries:                      # 검색 1회 = 100유닛
+      - {q: "AI 신기능", region: KR, lang: ko}
+      - {q: "챗GPT 클로드 제미나이", region: KR, lang: ko}
+      - {q: "new AI tool", region: US, lang: en}
     search_every_hours: 3   # 검색 1회=100유닛 → 3시간마다만 (하루 약 2,400유닛)
     base: 10
     ai_filter: true
