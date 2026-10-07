@@ -11,7 +11,7 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
-from . import metrics, pricing, report, research, store
+from . import logview, metrics, pricing, report, research, store
 from .score import build_clusters
 from .sources import COLLECTORS, MissingKey
 
@@ -43,8 +43,9 @@ def scan(cfg):
     clusters = build_clusters(items, sources, prev)
     md = report.write(clusters, sources, status)
     metrics.record(clusters)
+    log = logview.write(items, clusters, sources, status)
     removed = store.prune()
-    print(f"\n수집 {len(items)}건 → 이슈 {len(clusters)}개 → {md}"
+    print(f"\n수집 {len(items)}건 → 이슈 {len(clusters)}개 → {md}\n로그 페이지 → {log}"
           + (f" (오래된 스캔 {removed}개 삭제)" if removed else ""))
 
 
