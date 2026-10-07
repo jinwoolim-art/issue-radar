@@ -90,6 +90,67 @@ sources:
       - {q: '"생성형 검색 최적화" OR "GEO 마케팅" OR "AI 검색 최적화"', lang: ko, line: AI 검색 노출(GEO), days: 7, decay_hours: 168}
       - {q: '"챗GPT에" 물었더니 브랜드 OR "AI 검색" 노출 브랜드 OR "AI 브리핑" 노출', lang: ko, line: AI 검색 노출(GEO), days: 7, decay_hours: 168}
       - {q: '"generative engine optimization" OR "AI search visibility"', lang: en, line: AI 검색 노출(GEO), days: 7, decay_hours: 168}
+      - {q: '소상공인 AI 지원 OR "소상공인 디지털" AI', lang: ko, line: AI 검색 노출(GEO), days: 7, decay_hours: 168}
+      - {q: '"네이버 AI탭" OR "네이버 AI 브리핑"', lang: ko, line: AI 검색 노출(GEO), days: 7, decay_hours: 168}
+
+
+  # ── 국내 IT 매체 (RSS 공개 + robots 허용 확인 2026-10-07) — 네이버 대신 국내 범위 보강 ──
+  - id: zdnet_kr
+    name: ZDNet Korea
+    type: rss
+    tier: A
+    url: https://feeds.feedburner.com/zdkorea
+    base: 10
+    ai_filter: true
+
+  - id: bloter
+    name: 블로터
+    type: rss
+    tier: A
+    url: https://www.bloter.net/rss/allArticle.xml
+    base: 10
+    ai_filter: true
+
+  - id: digitaltoday
+    name: 디지털투데이
+    type: rss
+    tier: A
+    url: https://www.digitaltoday.co.kr/rss/allArticle.xml
+    base: 10
+    ai_filter: true
+
+  - id: etnews
+    name: 전자신문
+    type: rss
+    tier: A
+    url: https://rss.etnews.com/Section901.xml
+    base: 10
+    ai_filter: true
+
+  - id: itchosun
+    name: IT조선
+    type: rss
+    tier: A
+    url: https://it.chosun.com/rss/allArticle.xml
+    base: 10
+    ai_filter: true
+
+  - id: techm
+    name: 테크M
+    type: rss
+    tier: A
+    url: https://www.techm.kr/rss/allArticle.xml
+    base: 10
+    ai_filter: true
+
+  # 구글 트렌드 한국 실시간 급상승 — AI 관련 키워드가 국민 관심사로 뜰 때 잡기
+  - id: gtrends_kr
+    name: 구글 트렌드 KR
+    type: rss
+    tier: A
+    url: https://trends.google.com/trending/rss?geo=KR
+    base: 15
+    ai_filter: true
 
   # ── 광고·마케팅 업계 매체 (AI 관련 기사만) ──
   - id: digiday
