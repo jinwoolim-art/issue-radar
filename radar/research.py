@@ -73,14 +73,43 @@ def youtube(topic: str, queries: list[str] | None = None, days: int = 180,
     return out
 
 
+CACHE = ROOT / "data" / "research" / "_transcripts"   # 영상 id → 자막. 한 번 받은 자막은 다시 안 받는다
+DAILY_LOG = ROOT / "data" / "research" / "_daily_count.json"
+DAILY_LIMIT = 20       # 하루 최대 자막 요청 수 (2026-10-07: 13개 연속 요청 후 IP 차단 경험)
+GAP_SECONDS = 18       # 요청 간격
+
+
+def _daily_used() -> dict:
+    today = datetime.now().strftime("%Y-%m-%d")
+    log = json.loads(DAILY_LOG.read_text(encoding="utf-8")) if DAILY_LOG.exists() else {}
+    return {"date": today, "count": log.get("count", 0) if log.get("date") == today else 0}
+
+
 def fetch_transcripts(picked: list[dict]) -> int:
-    """자막을 받아 picked 에 채운다. 유튜브가 IP를 막으면 즉시 멈춘다 (계속 두드리면 차단이 길어짐)."""
-    api, got = YouTubeTranscriptApi(), 0
+    """자막을 받아 picked 에 채운다.
+    - 받아 둔 자막은 캐시에서 꺼내고, 새 요청은 18초 간격·하루 20개까지만
+    - 유튜브가 IP를 막으면 즉시 멈춘다 (계속 두드리면 차단이 길어짐)"""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    api, got, used = YouTubeTranscriptApi(), 0, _daily_used()
     for v in picked:
+        cached = CACHE / f"{v['id']}.txt"
         if v.get("transcript"):
             continue
+        if cached.exists():
+            v["transcript"] = cached.read_text(encoding="utf-8")
+            v.pop("transcript_error", None)
+            continue
+        if used["count"] >= DAILY_LIMIT:
+            v["transcript_error"] = "오늘 한도 도달"
+            print(f"  ⏸ 오늘 자막 한도({DAILY_LIMIT}개) 도달 → 내일 `python -m radar yt-retry`")
+            break
+        if used["count"]:
+            time.sleep(GAP_SECONDS)
+        used["count"] += 1
+        DAILY_LOG.write_text(json.dumps(used), encoding="utf-8")
         try:
             v["transcript"] = " ".join(s.text for s in api.fetch(v["id"], languages=["ko", "en"]))
+            cached.write_text(v["transcript"], encoding="utf-8")
             v.pop("transcript_error", None)
             got += 1
         except Exception as e:
@@ -88,8 +117,27 @@ def fetch_transcripts(picked: list[dict]) -> int:
             if type(e).__name__ in ("IpBlocked", "RequestBlocked"):
                 print("  ⛔ 유튜브가 자막 요청을 차단함 → 중단. 몇 시간 뒤 `python -m radar yt-retry` 로 이어 받기")
                 break
-        time.sleep(3)   # 차단 방지
     return got
+
+
+def comments(video_id: str, max_pages: int = 3) -> list[dict]:
+    """유튜브 공식 API로 댓글 수집 (100개당 1유닛, 자막과 달리 차단 걱정 없음). 관련도순."""
+    key = _env("YOUTUBE_API_KEY")
+    out, token = [], None
+    for _ in range(max_pages):
+        params = {"part": "snippet", "videoId": video_id, "order": "relevance", "maxResults": 100,
+                  "textFormat": "plainText", "key": key}
+        if token:
+            params["pageToken"] = token
+        r = http.get(f"{API}/commentThreads", params=params).json()
+        for t in r.get("items", []):
+            s = t["snippet"]["topLevelComment"]["snippet"]
+            out.append({"text": s["textDisplay"], "likes": s.get("likeCount", 0),
+                        "replies": t["snippet"].get("totalReplyCount", 0), "date": s["publishedAt"][:10]})
+        token = r.get("nextPageToken")
+        if not token:
+            break
+    return out
 
 
 def retry(folder: Path | None = None) -> Path:

@@ -9,6 +9,7 @@ COLLECTORS = {
     "github_trending": web.github_trending,
     "reddit": keyed.reddit,
     "youtube": keyed.youtube,
+    "naver": keyed.naver,
 }
 
 __all__ = ["COLLECTORS", "MissingKey"]

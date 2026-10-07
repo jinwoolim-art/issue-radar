@@ -118,3 +118,56 @@ def youtube(src) -> list[Item]:
                 extra={"channel": sn.get("channelTitle"), "video_id": v["id"]},
             ))
     return items
+
+
+# ── 네이버 (검색 API: 뉴스·블로그·카페글 / 하루 25,000회 무료) ──
+NAVER = "https://openapi.naver.com/v1"
+
+
+def _naver_headers():
+    return {"X-Naver-Client-Id": _env("NAVER_CLIENT_ID"), "X-Naver-Client-Secret": _env("NAVER_CLIENT_SECRET")}
+
+
+def naver_query(kind: str, query: str, display: int = 30, sort: str = "date") -> dict:
+    """kind: news | blog | cafearticle. 결과의 total 은 그 검색어의 '전체 언급량' 지표로도 쓴다."""
+    return http.get(f"{NAVER}/search/{kind}.json", headers=_naver_headers(),
+                    params={"query": query, "display": display, "sort": sort}).json()
+
+
+def _naver_date(it: dict):
+    if it.get("pubDate"):   # 뉴스: RFC 822
+        from email.utils import parsedate_to_datetime
+        return parsedate_to_datetime(it["pubDate"]).astimezone(timezone.utc)
+    if it.get("postdate"):  # 블로그: yyyymmdd
+        return datetime.strptime(it["postdate"], "%Y%m%d").replace(tzinfo=timezone.utc)
+    return None
+
+
+def naver(src) -> list[Item]:
+    _naver_headers()   # 키 없으면 MissingKey 로 건너뜀
+    clean = lambda s: re.sub(r"<[^>]+>|&quot;|&amp;|&lt;|&gt;", "", s or "")
+    items = []
+    for q in src["queries"]:
+        for kind in src.get("kinds", ["news", "blog", "cafearticle"]):
+            data = naver_query(kind, q["q"], display=src.get("per_query", 20))
+            for it in data.get("items", []):
+                items.append(Item(
+                    source=src["id"], title=clean(it["title"]),
+                    url=it.get("originallink") or it["link"],
+                    published_at=_naver_date(it), summary=clean(it.get("description"))[:300],
+                    extra={"line": q.get("line"), "naver_kind": kind, "query": q["q"],
+                           "decay_hours": q.get("decay_hours", 36),
+                           "publisher": it.get("bloggername") or it.get("cafename") or ""},
+                ))
+    return items
+
+
+def naver_datalab(groups: dict[str, list[str]], days: int = 90, unit: str = "week") -> dict:
+    """네이버 검색어 트렌드. groups={"ChatGPT 광고": ["챗GPT 광고","ChatGPT 광고"]} →
+    {"ChatGPT 광고": [(날짜, 0~100 상대값), ...]}. 최대 5그룹."""
+    end = datetime.now().date()
+    body = {"startDate": str(end - timedelta(days=days)), "endDate": str(end), "timeUnit": unit,
+            "keywordGroups": [{"groupName": g, "keywords": kw[:20]} for g, kw in list(groups.items())[:5]]}
+    r = http.post(f"{NAVER}/datalab/search", headers={**_naver_headers(), "Content-Type": "application/json"},
+                  json=body).json()
+    return {res["title"]: [(d["period"], d["ratio"]) for d in res["data"]] for res in r.get("results", [])}

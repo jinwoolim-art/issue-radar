@@ -140,6 +140,23 @@ sources:
     base: 10
     ai_filter: true
 
+  # ── 네이버 검색 (뉴스·블로그·카페글) — 국내 범위의 핵심. 키: NAVER_CLIENT_ID / NAVER_CLIENT_SECRET ──
+  - id: naver
+    name: 네이버
+    type: naver
+    tier: B
+    kinds: [news, blog, cafearticle]
+    per_query: 20
+    base: 12
+    ai_filter: true
+    queries:
+      - {q: "챗GPT 신기능"}
+      - {q: "제미나이 요금"}
+      - {q: "클로드 사용법"}
+      - {q: "챗GPT 광고", line: AI 광고 상품}
+      - {q: "AI 브리핑 플레이스", line: AI 검색 노출(GEO), decay_hours: 168}
+      - {q: "챗GPT 가게 추천", line: AI 검색 노출(GEO), decay_hours: 168}
+
   - id: reddit
     name: Reddit
     type: reddit
@@ -174,4 +191,4 @@ pricing_pages:
   - id: chatgpt
     name: ChatGPT 요금
     url: https://openai.com/chatgpt/pricing/
-    needs_browser: true   # 보안 차단 → 브라우저 방식 필요 (다음 단계)
+    # 보안 차단 페이지 — http.get 이 위장 접속으로 자동 재시도

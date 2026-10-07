@@ -5,3 +5,5 @@ lxml
 pyyaml
 python-dotenv
 youtube-transcript-api
+curl_cffi
+trafilatura
