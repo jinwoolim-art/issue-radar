@@ -140,11 +140,15 @@ sources:
     base: 10
     ai_filter: true
 
-  # ── 네이버 검색 (뉴스·블로그·카페글) — 국내 범위의 핵심. 키: NAVER_CLIENT_ID / NAVER_CLIENT_SECRET ──
+  # ── 네이버 검색 (뉴스·블로그·카페글) — ⛔ 사용 중지 (2026-10-07) ──
+  # 네이버가 2026-07-31부터 개발자센터 신규 신청 중단(→ 네이버클라우드 API 허브 이관),
+  # 2026-09-07 약관 개정: 검색 API 데이터를 AI 입력·학습·노출, 수익화, 저장·캐싱에 쓰는 것 금지.
+  # 우리 용도(AI 분류·브리프, 수익 채널, 저장)와 정면으로 충돌 → 쓰지 않는다. 국내 범위는 구글뉴스 KR + 국내 매체 RSS로.
   - id: naver
     name: 네이버
     type: naver
     tier: B
+    enabled: false
     kinds: [news, blog, cafearticle]
     per_query: 20
     base: 12

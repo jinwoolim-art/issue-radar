@@ -27,6 +27,8 @@ def scan(cfg):
     sources = {s["id"]: s for s in cfg["sources"]}
     items, status = [], {}
     for src in cfg["sources"]:
+        if src.get("enabled") is False:   # 설정에서 꺼 둔 출처 (이유는 sources.yaml 주석)
+            continue
         try:
             got = COLLECTORS[src["type"]](src)
             items += got
