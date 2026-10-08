@@ -63,6 +63,11 @@ def _chirp(kind: str, seed: int, out: Path) -> float:
         sig = np.concatenate([tone(1500, 1900, 0.07), gap(0.03), tone(2300, 2900, 0.09)])
     elif kind == "down":
         sig = tone(3000, 1300, 0.34, warble=0.04)
+    elif kind == "yay":      # 좋은 소식: 도-미-솔-도 올라가는 아르페지오
+        sig = np.concatenate([np.concatenate([tone(f, f * 1.02, 0.065), gap(0.01)]) for f in (1047, 1319, 1568)]
+                             + [tone(2093, 2150, 0.14, warble=0.03)])
+    elif kind == "sad":      # 나쁜 소식: 힘 빠지게 내려가는 "뾰-로롱"
+        sig = np.concatenate([tone(1200, 900, 0.16), gap(0.04), tone(1000, 560, 0.3, warble=0.05)])
     else:
         notes = rng.choice([1700, 2100, 2500, 2900, 3300], size=6)
         sig = np.concatenate([np.concatenate([tone(f, f * 1.08, 0.042), gap(0.008)]) for f in notes])
@@ -116,6 +121,7 @@ mark.hl{color:inherit;background:linear-gradient(transparent 58%,rgba(255,209,10
 .quote{border-left:14px solid var(--accent);padding:10px 0 10px 40px;font-size:60px;font-weight:800;line-height:1.35}
 .qsrc{font-size:38px;color:var(--muted)}
 #bot{position:absolute;right:170px;top:1036px;width:144px;height:153px;image-rendering:pixelated}
+#fx{position:absolute;left:0;top:0;width:1080px;height:1920px;image-rendering:pixelated}
 #bang{position:absolute;right:196px;top:950px;background:var(--hot);color:#1a1300;font:900 56px/1 "Apple SD Gothic Neo",sans-serif;
  padding:10px 22px;border-radius:14px;opacity:0}
 """
@@ -142,7 +148,7 @@ BOT = [
 ]
 
 JS = r"""(() => {   // 같은 페이지에 장면을 다시 넣어도 변수가 겹치지 않게 감싼다
-const BOT = %BOT%, TYPE = %TYPE%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%;
+const BOT = %BOT%, TYPE = %TYPE%, MOOD = %MOOD%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%;
 const COL = {k:'#4a5a70', w:'#e8eef5', d:'#0f2233', e:'#5ae0ff', m:'#5ae0ff', s:'#9fb0c3', c:'#ff7a6b', a:'#ffd166', A:'#7a6a3a', x:'#7ec8ff'};
 const cv = document.getElementById('bot'), g = cv.getContext('2d');
 const rv = [...document.querySelectorAll('.stage .rv')];
@@ -173,10 +179,25 @@ function drawBot(t) {
   if (TYPE === 'warning') { if (t % 1.2 < 0.5) dx = Math.floor(t * 14) % 2 ? 1 : -1; sweat = true; mouth = 'o'; }
   if (TYPE === 'steps' || TYPE === 'checklist') dy = (t % 0.8) < 0.15 ? 1 : 0;
   if (TYPE === 'outro') arm = Math.floor(t * 4) % 2 ? 'wave1' : 'wave2';
+  let mood = '';
+  if (MOOD === 'good') {             // 점프하며 색종이 던지기 → 신나게 손 흔들기
+    const u = t - FX_T0;
+    if (u > 0 && u < 0.5) { dy = -Math.round(Math.sin(Math.PI * u / 0.5) * 3); arm = 'point'; }
+    else if (u >= 0.5 && u < 3) arm = Math.floor(t * 5) % 2 ? 'wave1' : 'wave2';
+    mood = 'happy';
+  }
+  if (MOOD === 'bad') {              // 우산 들고 버티다가 → 돌풍에 우산 날아감 → 손 뻗고 울먹
+    if (t < GUST) { arm = 'point'; if (t > GUST - 0.5) dx = Math.floor(t * 18) % 2 ? 1 : 0; }
+    else { arm = (t - GUST) < 1.2 ? (Math.floor(t * 8) % 2 ? 'wave1' : 'wave2') : 'down'; mood = 'sad'; }
+    look = 0;
+  }
   // 눈: 깜빡임 > 두리번
   if (t % 2.8 < 0.12) { eyes('dddddddd'); for (let i = 0; i < 8; i++) set(4 + i, 7, 'deeddeed'[i]); }
   else if (look < 0) eyes('eeddeedd'); else if (look > 0) eyes('ddeeddee');
   if (mouth === 'o') { set(7, 8, 'm'); set(8, 8, 'm'); }
+  if (mood === 'happy') { eyes('deeddeed'); for (const x of [6, 7, 8, 9]) set(x, 9, 'm'); }
+  if (mood === 'sad') { eyes('dddddddd'); for (let i = 0; i < 8; i++) set(4 + i, 7, 'deeddeed'[i]);
+                        set(5, 8 + Math.floor((t * 4) % 2), 'x'); set(10, 8 + Math.floor((t * 4 + 1) % 2), 'x'); }
   // 안테나·가슴 불빛 깜빡
   const chirping = t < CHIRP;                     // 로봇 소리 나는 동안: 안테나 빠르게 깜빡 + 입 벙긋
   if (chirping ? Math.floor(t * 16) % 2 : Math.floor(t * 3) % 2) for (const [x, y] of [[6,0],[7,0],[8,0],[6,1],[7,1],[8,1]]) set(x, y, 'A');
@@ -190,8 +211,70 @@ function drawBot(t) {
   g.clearRect(0, 0, 16, 17);
   grid.forEach((row, y) => row.forEach((ch, x) => { if (ch !== '.') { g.fillStyle = COL[ch]; g.fillRect(x, y, 1, 1); } }));
   cv.style.transform = `translate(${dx * 9}px, ${dy * 9}px)`;
+  botDx = dx; botDy = dy;
   const bang = document.getElementById('bang');
   bang.style.opacity = (TYPE === 'hook' && t > 0.15 && t < 1.8) ? 1 : 0;
+}
+
+// ── 효과 층: 색종이(좋은 소식) / 비 + 날아가는 우산(나쁜 소식) ──
+const P = 9, BX = 1080 - 170 - 144, BY = 1036;        // 픽셀 크기, 로봇 캔버스 왼쪽 위
+const HAND = [BX + 14.5 * P, BY + 10.5 * P];
+const FX_T0 = 0.18, GUST = 1.6;
+let botDx = 0, botDy = 0;
+const fx = document.getElementById('fx'), f = fx.getContext('2d');
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let x = Math.imul(seed ^ seed >>> 15, 1 | seed);
+  x = x + Math.imul(x ^ x >>> 7, 61 | x) ^ x; return ((x ^ x >>> 14) >>> 0) / 4294967296; }; }
+const R = rng(7), CONF = ['#ffd166', '#5ab0ff', '#ff7a6b', '#7bd88f', '#c792ff', '#f4f6f8'];
+const confetti = MOOD !== 'good' ? [] : Array.from({length: 150}, (_, i) => {
+  const second = i >= 95, ang = (100 + R() * 70) * Math.PI / 180, sp = (second ? 1200 : 1700) + R() * 1100;
+  return {t0: FX_T0 + (second ? 0.8 : 0) + R() * 0.08, vx: Math.cos(ang) * sp, vy: -Math.sin(ang) * sp, k: 1.8 + R() * 1.0,
+          col: CONF[Math.floor(R() * CONF.length)], rot: R() * 6.28, rs: 5 + R() * 9, ph: R() * 6.28, sw: 25 + R() * 60, tall: R() < 0.5};
+});
+const G = 1500;    // 중력(px/s²). 공기 저항 k 때문에 종이는 천천히 떨어지며 하늘하늘 흔들린다
+function drawConfetti(t) {
+  for (const c of confetti) {
+    const u = t - c.t0; if (u <= 0) continue;
+    const e = Math.exp(-c.k * u), vt = G / c.k;
+    const x = HAND[0] + c.vx * (1 - e) / c.k + c.sw * Math.sin(2 * Math.PI * 1.3 * u + c.ph) * (1 - Math.exp(-1.5 * u));
+    const y = HAND[1] + vt * u + (c.vy - vt) * (1 - e) / c.k;
+    if (y > 1960) continue;
+    const flip = Math.abs(Math.cos(c.rot + c.rs * u));         // 뒤집히며 도는 느낌: 폭이 줄었다 늘었다
+    const C = 13, w = Math.max(4, Math.round(C * flip / 4) * 4), h = c.tall ? C * 1.5 : C;   // 색종이 한 장 = 13px 도트
+    f.fillStyle = c.col; f.fillRect(Math.round(x - w / 2), Math.round(y), w, h);
+  }
+}
+const drops = MOOD !== 'bad' ? [] : Array.from({length: 170}, () => ({x: R() * 1500, sp: 1500 + R() * 700, ph: R()}));
+const wind = t => t < GUST ? -160 : -160 - 700 * Math.min(1, (t - GUST) / 0.3);
+const UMB = ["....rrr....", "..rrwrrwr..", ".rrrwrrwrr.", "rrrrwrrwrrr", ".....h.....", ".....h.....", ".....h.....",
+             ".....h.....", ".....h.....", ".....h.....", ".....h.....", ".....hh...."];
+const UP = 12;   // 우산 도트 크기 (로봇보다 살짝 크게 — 화면에서 잘 보이게)
+const UCOL = {r: '#ff7a6b', w: '#ffd166', h: '#e8eef5'};
+function drawUmbrella(x, y, th) {
+  f.save(); f.translate(Math.round(x), Math.round(y)); f.rotate(th);
+  UMB.forEach((row, r) => [...row].forEach((ch, c) => { if (ch !== '.') { f.fillStyle = UCOL[ch]; f.fillRect((c - 5) * UP, (r - 11) * UP, UP, UP); } }));
+  f.restore();
+}
+function drawRain(t) {
+  f.fillStyle = 'rgba(8,14,26,0.22)'; f.fillRect(0, 0, 1080, 1920);
+  f.fillStyle = 'rgba(126,200,255,0.55)';
+  for (const d of drops) {
+    const cyc = 2100 / d.sp, u = ((t + d.ph * cyc) % cyc), y = -100 + d.sp * u, x = d.x + wind(t) * u * 0.7;
+    const sx = wind(t) / d.sp;                                  // 바람 방향으로 기운 빗줄기
+    for (let k = 0; k < 3; k++) f.fillRect(Math.round(x - sx * k * 12), Math.round(y - k * 12), 4, 10);
+  }
+  const theta0 = -0.35;
+  if (t < GUST) {                                               // 바람에 흔들리다 점점 세게 펄럭
+    const shake = t > GUST - 0.6 ? 0.28 * Math.sin(t * 30) * (t - (GUST - 0.6)) / 0.6 : 0;
+    drawUmbrella(HAND[0] + botDx * P, HAND[1] + botDy * P, theta0 + 0.07 * Math.sin(t * 6) + shake);
+  } else {                                                      // 돌풍: 위로 떠올라 빙글빙글 날아감
+    const u = t - GUST;
+    drawUmbrella(HAND[0] - 650 * u - 300 * u * u, HAND[1] - 950 * u + 260 * u * u, theta0 - 9 * u);
+  }
+}
+function drawFx(t) {
+  f.clearRect(0, 0, 1080, 1920);
+  if (MOOD === 'good') drawConfetti(t);
+  if (MOOD === 'bad') drawRain(t);
 }
 
 window.render = (t) => {
@@ -203,6 +286,7 @@ window.render = (t) => {
   });
   words.forEach(w => w.classList.toggle('on', t >= w.dataset.at));
   drawBot(t);
+  drawFx(t);
 };
 })();
 """
@@ -257,11 +341,11 @@ def _caption(text: str) -> str:
 
 def _page(sc: dict, i: int, n: int, speech: float, offset: float = 0.0, chirp: float = 0.0) -> str:
     dots = "".join(f'<i class="{"on" if k == i else ""}"></i>' for k in range(n))
-    js = (JS.replace("%BOT%", json.dumps(BOT)).replace("%TYPE%", json.dumps(sc["type"])).replace("%SPEECH%", f"{speech:.3f}")
+    js = (JS.replace("%BOT%", json.dumps(BOT)).replace("%TYPE%", json.dumps(sc["type"])).replace("%MOOD%", json.dumps(sc.get("mood", ""))).replace("%SPEECH%", f"{speech:.3f}")
           .replace("%OFFSET%", f"{offset:.3f}").replace("%CHIRP%", f"{chirp:.3f}"))
     return (f"<html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"
             f'<div class="top"><span class="kicker">{_fmt(sc["kicker"])}</span><span class="dots">{dots}</span></div>'
-            f'<div class="stage">{_body(sc)}</div><div class="cap">{_caption(sc["narration"])}</div>'
+            f'<div class="stage">{_body(sc)}</div><canvas id="fx" width="1080" height="1920"></canvas><div class="cap">{_caption(sc["narration"])}</div>'
             f'<div id="bang">!</div><canvas id="bot" width="16" height="17"></canvas>'
             f'<div class="tag">샘플 · 자료: 장면표 출처 참조</div><script>{js}</script></body></html>')
 
@@ -283,7 +367,7 @@ def render(spec_path: str) -> Path:
             raw = work / f"s{i}.voice.aiff"
             _run(["say", "-v", spec.get("voice", "Yuna"), "-r", str(spec.get("rate", 200)), "-o", str(raw), text])
         speech = float(_run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(raw)]))
-        kind = {"hook": "bibik", "outro": "down"}.get(sc["type"], "biri")
+        kind = {"good": "yay", "bad": "sad"}.get(sc.get("mood")) or {"hook": "bibik", "outro": "down"}.get(sc["type"], "biri")
         chirp = _chirp(kind, i, work / f"s{i}.chirp.wav")
         offset = round(chirp - 0.04, 3)
         _run(["ffmpeg", "-y", "-i", str(raw), "-i", str(work / f"s{i}.chirp.wav"), "-filter_complex",
