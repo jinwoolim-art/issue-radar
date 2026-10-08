@@ -27,6 +27,7 @@ from .shorts import OUT, ROOT, W, H, _run
 
 FPS = 30
 PAD = 0.35   # 장면 끝 여백(초)
+INTRO = 1.4  # 채널 오프닝 길이(초): 큰 로봇 얼굴이 "빅뉴스!!!"에 놀라 → 허둥지둥 자리로
 SR = 44100
 VOICE = {"tts": "clova", "speaker": "ndain", "speed": "-2"}   # 숏폼은 조금 빠르게   # 장면표에서 "voice2": {...} 로 바꿀 수 있음
 TTS_CACHE = ROOT / "data" / "tts_cache"    # 같은 문장·화자는 다시 돈 내고 만들지 않는다
@@ -68,6 +69,11 @@ def _chirp(kind: str, seed: int, out: Path) -> float:
                              + [tone(2093, 2150, 0.14, warble=0.03)])
     elif kind == "sad":      # 나쁜 소식: 힘 빠지게 내려가는 "뾰-로롱"
         sig = np.concatenate([tone(1200, 900, 0.16), gap(0.04), tone(1000, 560, 0.3, warble=0.05)])
+    elif kind == "intro":    # 오프닝: 삐빅(감지) → 빅↗뉴↘스!↗(로봇 말투) → 슝~(자리로) → 콩(부딪힘)
+        sig = np.concatenate([gap(0.22), tone(1500, 1900, 0.06), gap(0.02), tone(2300, 2900, 0.08), gap(0.07),
+                              tone(1900, 1950, 0.07), gap(0.03), tone(1300, 1250, 0.08), gap(0.03),
+                              tone(2000, 3000, 0.14, warble=0.03), gap(0.1), tone(2600, 700, 0.3, warble=0.02),
+                              gap(0.02), tone(420, 240, 0.09)])
     else:
         notes = rng.choice([1700, 2100, 2500, 2900, 3300], size=6)
         sig = np.concatenate([np.concatenate([tone(f, f * 1.08, 0.042), gap(0.008)]) for f in notes])
@@ -122,6 +128,8 @@ mark.hl{color:inherit;background:linear-gradient(transparent 58%,rgba(255,209,10
 .qsrc{font-size:38px;color:var(--muted)}
 #bot{position:absolute;right:170px;top:1036px;width:144px;height:153px;image-rendering:pixelated}
 #fx{position:absolute;left:0;top:0;width:1080px;height:1920px;image-rendering:pixelated}
+#news{position:absolute;left:540px;top:300px;background:var(--hot);color:#1a1300;font:900 120px/1 "Apple SD Gothic Neo",sans-serif;
+ padding:22px 40px;border-radius:24px;border:8px solid #1a1300;white-space:nowrap;opacity:0;letter-spacing:-3px}
 #bang{position:absolute;right:196px;top:950px;background:var(--hot);color:#1a1300;font:900 56px/1 "Apple SD Gothic Neo",sans-serif;
  padding:10px 22px;border-radius:14px;opacity:0}
 """
@@ -148,12 +156,12 @@ BOT = [
 ]
 
 JS = r"""(() => {   // 같은 페이지에 장면을 다시 넣어도 변수가 겹치지 않게 감싼다
-const BOT = %BOT%, TYPE = %TYPE%, MOOD = %MOOD%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%;
+const BOT = %BOT%, TYPE = %TYPE%, MOOD = %MOOD%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%, INTRO = %INTRO%;
 const COL = {k:'#4a5a70', w:'#e8eef5', d:'#0f2233', e:'#5ae0ff', m:'#5ae0ff', s:'#9fb0c3', c:'#ff7a6b', a:'#ffd166', A:'#7a6a3a', x:'#7ec8ff'};
 const cv = document.getElementById('bot'), g = cv.getContext('2d');
 const rv = [...document.querySelectorAll('.stage .rv')];
 const n = rv.length, gap = n ? Math.min(0.45, (SPEECH * 0.5) / n) : 0;
-rv.forEach((el, i) => el.dataset.at = 0.12 + i * gap);
+rv.forEach((el, i) => el.dataset.at = INTRO + 0.12 + i * gap);
 const words = [...document.querySelectorAll('.cap span')];
 const total = words.reduce((a, w) => a + w.textContent.length, 0);
 let acc = 0; words.forEach(w => { w.dataset.at = OFFSET + (acc / total) * SPEECH; acc += w.textContent.length; });
@@ -172,7 +180,7 @@ function drawBot(t) {
   const set = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16) grid[y][x] = ch; };
   const eyes = (pat) => { for (const y of [6, 7]) pat.split('').forEach((ch, i) => set(4 + i, y, ch)); };
   let dx = 0, dy = (Math.floor(t * 2) % 2) ? 0 : -1, look = 0, arm = 'down', mouth = 'n', sweat = false;
-  if (TYPE === 'hook' && t < 0.7) { dy = -Math.round(Math.sin(Math.PI * t / 0.7) * 4); mouth = 'o'; }
+  if (TYPE === 'hook' && t < 0.7 && !INTRO) { dy = -Math.round(Math.sin(Math.PI * t / 0.7) * 4); mouth = 'o'; }
   if (TYPE === 'compare') look = Math.floor(t / 0.9) % 2 ? 1 : -1;
   if (TYPE === 'stat' || TYPE === 'price') { arm = t > 0.3 ? 'point' : 'down'; look = -1; }
   if (TYPE === 'quote') look = -1;
@@ -213,7 +221,7 @@ function drawBot(t) {
   cv.style.transform = `translate(${dx * 9}px, ${dy * 9}px)`;
   botDx = dx; botDy = dy;
   const bang = document.getElementById('bang');
-  bang.style.opacity = (TYPE === 'hook' && t > 0.15 && t < 1.8) ? 1 : 0;
+  bang.style.opacity = (TYPE === 'hook' && !INTRO && t > 0.15 && t < 1.8) ? 1 : 0;
 }
 
 // ── 효과 층: 색종이(좋은 소식) / 비 + 날아가는 우산(나쁜 소식) ──
@@ -271,6 +279,59 @@ function drawRain(t) {
     drawUmbrella(HAND[0] - 650 * u - 300 * u * u, HAND[1] - 950 * u + 260 * u * u, theta0 - 9 * u);
   }
 }
+// ── 채널 오프닝: 큰 얼굴 두리번 → 찌릿 감지 → 헉! "빅뉴스!!!" → 허둥지둥 자리로 → 콩 ──
+const HOME = [BX + 72, BY + 76.5], MID = [540, 860], BIG = 4.2;
+const easeInBack = x => { const c = 1.9; return (c + 1) * x * x * x - c * x * x; };
+function introState(t) {
+  if (t < 0.9) {
+    const pop = t > 0.45 ? 1 + 0.14 * Math.exp(-(t - 0.45) * 9) * Math.cos((t - 0.45) * 30) : 1;
+    const shake = (t > 0.45 && t < 0.7) ? (Math.floor(t * 40) % 2 ? 7 : -7) : 0;
+    return {x: MID[0] + shake, y: MID[1], sx: BIG * pop, sy: BIG * pop};
+  }
+  if (t < 1.25) {                                  // 슝: 살짝 뒤로 뺐다가(어설픈 출발) 자리로 휙
+    const p = easeInBack((t - 0.9) / 0.35), sc = BIG + (1 - BIG) * Math.min(1, Math.max(0, p));
+    return {x: MID[0] + (HOME[0] - MID[0]) * p, y: MID[1] + (HOME[1] - MID[1]) * p, sx: sc, sy: sc};
+  }
+  const q = (t - 1.25) / 0.3, wob = Math.exp(-q * 4) * Math.cos(q * 14);      // 콩: 찌그러졌다 출렁
+  return {x: HOME[0], y: HOME[1] + 6 * wob, sx: 1 + 0.25 * wob, sy: 1 - 0.25 * wob};
+}
+function drawIntro(t) {
+  const grid = BOT.map(r => r.split(''));
+  const set = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16) grid[y][x] = ch; };
+  const rows = (ys, pat) => { for (const y of ys) pat.split('').forEach((ch, i) => set(4 + i, y, ch)); };
+  if (t < 0.25) rows([6, 7], Math.floor(t * 12) % 2 ? 'eeddeedd' : 'ddeeddee');          // 두리번두리번
+  else if (t < 0.45) { rows([6, 7], 'dddddddd'); rows([5, 6], 'deeddeed'); }             // 찌릿 — 눈이 위로
+  else if (t < 0.9) { rows([5, 6], 'deeddeed'); rows([7], 'dddddddd'); rows([8, 9], 'dddmmddd'); set(5, 5, 'w'); set(9, 5, 'w'); set(14, 4, 'x'); }  // 헉! 동그란 눈+반짝, 입은 세로 O
+  else rows([6, 7], 'ddeeddee');                                                             // 자리 쪽을 보며 출발
+  const lit = t > 0.25 && t < 0.9 ? true : Math.floor(t * 6) % 2;
+  if (!lit) for (const [x, y] of [[6,0],[7,0],[8,0],[6,1],[7,1],[8,1]]) set(x, y, 'A');
+  for (const [x, y] of [[3,13],[3,14],[12,13],[12,14]]) set(x, y, 's');
+  if (t > 0.45 && t < 0.9) { set(2, 12, 's'); set(1, 11, 's'); set(13, 12, 's'); set(14, 11, 's'); }  // 깜짝 놀라 팔 번쩍
+  g.clearRect(0, 0, 16, 17);
+  grid.forEach((row, y) => row.forEach((ch, x) => { if (ch !== '.') { g.fillStyle = COL[ch]; g.fillRect(x, y, 1, 1); } }));
+  const st = introState(t);
+  cv.style.transform = `translate(${st.x - HOME[0]}px, ${st.y - HOME[1]}px) scale(${st.sx}, ${st.sy})`;
+  // 말풍선 "빅뉴스!!!": 툭 튀어나왔다가 출발할 때 사라짐
+  const nw = document.getElementById('news');
+  const pn = t < 0.45 ? 0 : t < 0.9 ? 1 : Math.max(0, 1 - (t - 0.9) / 0.15);
+  const bounce = t < 0.45 ? 0 : 1 + 0.3 * Math.exp(-(t - 0.45) * 10) * Math.cos((t - 0.45) * 26);
+  nw.style.opacity = pn; nw.style.transform = `translateX(-50%) rotate(-6deg) scale(${bounce})`;
+  // 배경 어둡게 + 안테나 찌릿 불꽃 + 착지 먼지
+  f.clearRect(0, 0, 1080, 1920);
+  f.fillStyle = `rgba(4,8,14,${0.6 * (t < 0.9 ? 1 : Math.max(0, 1 - (t - 0.9) / 0.35))})`; f.fillRect(0, 0, 1080, 1920);
+  if (t > 0.25 && t < 0.9 && Math.floor(t * 20) % 2) {
+    const ax = st.x + (7.5 - 8) * 9 * st.sx, ay = st.y + (0.5 - 8.5) * 9 * st.sy, Q = 14;
+    f.fillStyle = '#ffd166';
+    for (const sgn of [-1, 1]) for (let k = 0; k < 5; k++)                     // 지그재그 번개
+      f.fillRect(Math.round(ax + sgn * (40 + k * Q) + (k % 2 ? sgn * 10 : 0)), Math.round(ay - 30 - k * Q), Q, Q);
+  }
+  if (t > 1.25) {
+    const q = t - 1.25; f.fillStyle = `rgba(200,210,225,${Math.max(0, 1 - q / 0.15)})`;
+    for (const sgn of [-1, 1]) for (let k = 0; k < 3; k++) f.fillRect(HOME[0] + sgn * (80 + q * 400 + k * 14), BY + 150 - k * 10, 10, 10);
+  }
+  document.querySelector('.cap').style.opacity = t < 1.2 ? 0 : 1;
+}
+
 function drawFx(t) {
   f.clearRect(0, 0, 1080, 1920);
   if (MOOD === 'good') drawConfetti(t);
@@ -285,8 +346,10 @@ window.render = (t) => {
     el.querySelectorAll('.cnt').forEach(c => c.textContent = countText(c.dataset.to, ease((t - el.dataset.at) / 0.9)));
   });
   words.forEach(w => w.classList.toggle('on', t >= w.dataset.at));
-  drawBot(t);
-  drawFx(t);
+  if (INTRO && t < INTRO) { drawIntro(t); return; }
+  document.getElementById('news').style.opacity = 0;
+  drawBot(t - INTRO);
+  drawFx(t - INTRO);
 };
 })();
 """
@@ -339,14 +402,15 @@ def _caption(text: str) -> str:
     return " ".join(out)
 
 
-def _page(sc: dict, i: int, n: int, speech: float, offset: float = 0.0, chirp: float = 0.0) -> str:
+def _page(sc: dict, i: int, n: int, speech: float, offset: float = 0.0, chirp: float = 0.0,
+          intro: float = 0.0, intro_text: str = "빅뉴스!!!") -> str:
     dots = "".join(f'<i class="{"on" if k == i else ""}"></i>' for k in range(n))
     js = (JS.replace("%BOT%", json.dumps(BOT)).replace("%TYPE%", json.dumps(sc["type"])).replace("%MOOD%", json.dumps(sc.get("mood", ""))).replace("%SPEECH%", f"{speech:.3f}")
-          .replace("%OFFSET%", f"{offset:.3f}").replace("%CHIRP%", f"{chirp:.3f}"))
+          .replace("%OFFSET%", f"{offset:.3f}").replace("%CHIRP%", f"{chirp:.3f}").replace("%INTRO%", f"{intro:.3f}"))
     return (f"<html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"
             f'<div class="top"><span class="kicker">{_fmt(sc["kicker"])}</span><span class="dots">{dots}</span></div>'
             f'<div class="stage">{_body(sc)}</div><canvas id="fx" width="1080" height="1920"></canvas><div class="cap">{_caption(sc["narration"])}</div>'
-            f'<div id="bang">!</div><canvas id="bot" width="16" height="17"></canvas>'
+            f'<div id="bang">!</div><div id="news">{html.escape(intro_text)}</div><canvas id="bot" width="16" height="17"></canvas>'
             f'<div class="tag">샘플 · 자료: 장면표 출처 참조</div><script>{js}</script></body></html>')
 
 
@@ -367,14 +431,16 @@ def render(spec_path: str) -> Path:
             raw = work / f"s{i}.voice.aiff"
             _run(["say", "-v", spec.get("voice", "Yuna"), "-r", str(spec.get("rate", 200)), "-o", str(raw), text])
         speech = float(_run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(raw)]))
-        kind = {"good": "yay", "bad": "sad"}.get(sc.get("mood")) or {"hook": "bibik", "outro": "down"}.get(sc["type"], "biri")
+        intro = INTRO if (i == 0 and spec.get("intro", True)) else 0.0     # 첫 장면엔 채널 오프닝 "빅뉴스!!!"
+        kind = "intro" if intro else ({"good": "yay", "bad": "sad"}.get(sc.get("mood"))
+                                      or {"hook": "bibik", "outro": "down"}.get(sc["type"], "biri"))
         chirp = _chirp(kind, i, work / f"s{i}.chirp.wav")
-        offset = round(chirp - 0.04, 3)
+        offset = round(max(chirp - 0.04, intro + 0.05), 3)
         _run(["ffmpeg", "-y", "-i", str(raw), "-i", str(work / f"s{i}.chirp.wav"), "-filter_complex",
               f"[0:a]aresample={SR},aformat=channel_layouts=stereo,adelay={int(offset * 1000)}:all=1[v];"
               f"[1:a]aformat=channel_layouts=stereo[c];[v][c]amix=inputs=2:duration=longest:normalize=0,apad=pad_dur={PAD}",
               "-ar", str(SR), "-ac", "2", str(work / f"s{i}.wav")])
-        durs.append((speech, offset + speech + PAD, offset, chirp))
+        durs.append((speech, offset + speech + PAD, offset, 0.0 if intro else chirp, intro))
 
     # 2) 장면마다 t를 1/30초씩 움직이며 찍어서 ffmpeg로 바로 넘긴다
     from playwright.sync_api import sync_playwright
@@ -383,8 +449,8 @@ def render(spec_path: str) -> Path:
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H})
         for i, sc in enumerate(scenes):
-            speech, dur, offset, chirp = durs[i]
-            pg.set_content(_page(sc, i, len(scenes), speech, offset, chirp))
+            speech, dur, offset, chirp, intro = durs[i]
+            pg.set_content(_page(sc, i, len(scenes), speech, offset, chirp, intro, spec.get("intro_text", "빅뉴스!!!")))
             seg = work / f"s{i}.mp4"
             enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-i", "-",
                                     "-i", str(work / f"s{i}.wav"), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
