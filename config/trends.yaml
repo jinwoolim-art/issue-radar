@@ -1,0 +1,24 @@
+# 트렌드 계기판 키워드 — "탐님 관심(공급)" vs "시청자 반응(수요)" 비교용
+# star: 탐님 관심도 3=핵심 2=관심 1=지켜보기
+# aliases: 수집된 기사·영상 제목에서 이 키워드를 알아보는 표기 (소문자 비교)
+# yt: 유튜브 검색어 (한국, 최근 7일) — 1개당 하루 약 101유닛
+# gt: 구글 트렌드 한국 검색어
+
+anchor: 챗GPT   # 구글 트렌드는 5개씩만 비교되므로 매 묶음에 이 키워드를 넣어 서로 비교 가능하게 맞춘다
+
+keywords:
+  - {name: ChatGPT,        star: 2, aliases: [chatgpt, 챗gpt, 챗지피티],            yt: "챗GPT",            gt: 챗GPT}
+  - {name: 클로드,          star: 2, aliases: [claude, 클로드],                     yt: "클로드 AI",         gt: 클로드}
+  - {name: 제미나이,        star: 2, aliases: [gemini, 제미나이],                   yt: "제미나이",          gt: 제미나이}
+  - {name: 퍼플렉시티,      star: 1, aliases: [perplexity, 퍼플렉시티],             yt: "퍼플렉시티",        gt: 퍼플렉시티}
+  - {name: AI 요금·할인,    star: 2, aliases: [요금제, 구독료, 할인, pricing, 무료 체험], yt: "AI 요금제 비교",  gt: AI 요금제}
+  - {name: ChatGPT 광고,    star: 3, aliases: [chatgpt ads, 챗gpt 광고, 시각적 광고], yt: "챗GPT 광고",      gt: 챗GPT 광고}
+  - {name: 네이버 AI탭·브리핑, star: 3, aliases: [ai탭, ai 탭, ai 브리핑, ai브리핑],  yt: "네이버 AI 브리핑",  gt: AI 브리핑}
+  - {name: GEO·AI검색최적화, star: 3, aliases: [geo, aeo, ai 검색 최적화, 생성형 검색], yt: "GEO 최적화",      gt: GEO 마케팅}
+  - {name: 소상공인 AI,     star: 3, aliases: [소상공인, 자영업, 사장님],             yt: "소상공인 AI 활용",   gt: 소상공인 AI}
+  - {name: AI 에이전트,     star: 2, aliases: [agent, 에이전트],                    yt: "AI 에이전트",       gt: AI 에이전트}
+  - {name: 클로드 코드·코덱스, star: 2, aliases: [claude code, 클로드 코드, codex, 코덱스], yt: "클로드 코드",    gt: 클로드 코드}
+  - {name: AI 영상 생성,    star: 1, aliases: [sora, 소라, veo, 영상 생성],          yt: "AI 영상 만들기",     gt: AI 영상}
+  - {name: 노트북LM,        star: 1, aliases: [notebooklm, 노트북lm],               yt: "노트북LM",          gt: 노트북LM}
+  - {name: AI 쇼핑,         star: 2, aliases: [가상 착용, try on, 쇼핑 에이전트, ai 쇼핑], yt: "챗GPT 쇼핑",      gt: AI 쇼핑}
+  - {name: AI 부업·수익화,  star: 1, aliases: [부업, 수익화, side hustle],          yt: "AI 부업",           gt: AI 부업}

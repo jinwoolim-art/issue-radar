@@ -7,3 +7,4 @@ python-dotenv
 youtube-transcript-api
 curl_cffi
 trafilatura
+pytrends

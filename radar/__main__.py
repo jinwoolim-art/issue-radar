@@ -4,6 +4,7 @@
     python -m radar all        # 둘 다
     python -m radar yt "주제" ["검색어2" ...]   # 유튜브 리서치: 영상 목록 + 자막 → data/research/
     python -m radar yt-retry                    # 차단 등으로 못 받은 자막만 이어 받기 (가장 최근 리서치)
+    python -m radar trends                      # 트렌드 계기판: 키워드별 유튜브 반응·검색 관심도·언급량 → out/trends.html
 """
 import sys
 from pathlib import Path
@@ -70,6 +71,13 @@ def main():
         topic = sys.argv[2]
         out = research.youtube(topic, queries=[topic] + sys.argv[3:])
         print(f"유튜브 리서치 완료 → {out}/digest.md")
+        return
+    if cmd == "trends":
+        from . import trends, trendview
+        print("[트렌드 계기판 수집]")
+        out = trends.collect()
+        page = trendview.write()
+        print(f"→ {out}\n계기판 → {page}")
         return
     if cmd == "yt-retry":
         out = research.retry()
