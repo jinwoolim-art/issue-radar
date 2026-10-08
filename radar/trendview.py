@@ -48,29 +48,64 @@ def _verdict(star, demand, cut):
     return "⏸ 지켜보기"
 
 
+def _label_w(text):
+    return sum(11 if ord(c) > 0x2000 else 6.5 for c in text)   # 한글은 넓게
+
+
 def _quadrant(rows, cut):
-    W, H, P = 640, 360, 44
-    x = lambda s, i: P + (s - 0.5) / 3 * (W - 2 * P) + ((i % 3) - 1) * 26
+    W, H, P = 760, 420, 48
+    colw = (W - 2 * P) / 3
     y = lambda d: H - P - d / 100 * (H - 2 * P)
-    cy, cx = y(cut), P + 1.5 / 3 * (W - 2 * P)
+    cy, cx = y(cut), P + 1.5 * colw
     parts = [f'<svg viewBox="0 0 {W} {H}" class="quad" role="img" aria-label="관심 대비 반응 4분면">',
              f'<line x1="{cx}" y1="{P - 10}" x2="{cx}" y2="{H - P}" class="grid"/>',
              f'<line x1="{P}" y1="{cy}" x2="{W - P + 10}" y2="{cy}" class="grid"/>',
-             f'<text x="{W - P}" y="{P}" class="ql" text-anchor="end">✅ 지금 할 것</text>',
-             f'<text x="{P + 4}" y="{P}" class="ql">💡 기회 (반응 큼, 내 관심 낮음)</text>',
-             f'<text x="{W - P}" y="{H - P - 8}" class="ql" text-anchor="end">🤔 내 관심만</text>',
-             f'<text x="{P + 4}" y="{H - P - 8}" class="ql">⏸ 지켜보기</text>',
-             f'<text x="{W / 2}" y="{H - 8}" class="axis" text-anchor="middle">탐님 관심 → (★1 지켜보기 · ★2 관심 · ★3 핵심)</text>',
-             f'<text x="14" y="{H / 2}" class="axis" transform="rotate(-90 14 {H / 2})" text-anchor="middle">시청자 반응 지수 →</text>']
-    for i, r in enumerate(sorted(rows, key=lambda r: (r["star"], -r["demand"]))):
-        px, py = x(r["star"], i), y(r["demand"])
-        tip = (f'{r["name"]} · 반응 {r["demand"]} · 영상당 평균 {_num(r["yt"]["views_per_video"])}회 · '
-               f'7일 영상 {r["yt"]["videos_7d"]}개')
-        parts.append(f'<g class="dot"><title>{e(tip)}</title><circle cx="{px:.1f}" cy="{py:.1f}" r="12" fill="transparent"/>'
+             f'<text x="{W - P}" y="{P - 18}" class="ql" text-anchor="end">✅ 지금 할 것</text>',
+             f'<text x="{P}" y="{P - 18}" class="ql">💡 기회 (반응 큼, 내 관심 낮음)</text>',
+             f'<text x="{W - P}" y="{H - P + 18}" class="ql" text-anchor="end">🤔 내 관심만</text>',
+             f'<text x="{P}" y="{H - P + 18}" class="ql">⏸ 지켜보기</text>',
+             f'<text x="{W / 2}" y="{H - 6}" class="axis" text-anchor="middle">탐님 관심 → (★1 지켜보기 · ★2 관심 · ★3 핵심)</text>',
+             f'<text x="12" y="{H / 2}" class="axis" transform="rotate(-90 12 {H / 2})" text-anchor="middle">시청자 반응 지수 →</text>']
+    for s_ in (1, 2, 3):
+        parts.append(f'<text x="{P + (s_ - 0.5) * colw}" y="{H - P + 18}" class="axis" text-anchor="middle">{"★" * s_}</text>')
+    # 같은 ★ 칸 안에서 반응 순으로 가로로 고르게 벌린다
+    pts = []
+    for s_ in (1, 2, 3):
+        col = sorted([r for r in rows if r["star"] == s_], key=lambda r: -r["demand"])
+        for i, r in enumerate(col):
+            frac = (i + 0.5) / len(col) if len(col) > 1 else 0.5
+            pts.append((r, P + (s_ - 1) * colw + 18 + frac * (colw - 70), y(r["demand"])))
+    # 이름표 겹침 피하기: 오른쪽 → 위·아래로 비켜서 → 왼쪽 순으로 시도
+    placed = []
+    def hit(b):
+        return any(not (b[2] < q[0] or b[0] > q[2] or b[3] < q[1] or b[1] > q[3]) for q in placed)
+    for r, px, py in sorted(pts, key=lambda t: t[2]):
+        placed.append((px - 6, py - 6, px + 6, py + 6))
+    labels = []
+    for r, px, py in sorted(pts, key=lambda t: t[2]):
+        w = _label_w(r["name"])
+        for dx, dy, anchor in [(9, 0, "start"), (9, -14, "start"), (9, 14, "start"), (-9, 0, "end"),
+                               (-9, -14, "end"), (-9, 14, "end"), (9, -28, "start"), (9, 28, "start")]:
+            x0 = px + dx if anchor == "start" else px + dx - w
+            box = (x0, py + dy - 10, x0 + w, py + dy + 4)
+            if not hit(box) and box[0] > 2 and box[2] < W - 2:
+                placed.append(box)
+                labels.append((r, px, py, px + dx, py + dy, anchor))
+                break
+        else:
+            labels.append((r, px, py, px + 9, py, "start"))
+    for r, px, py, lx, ly, anchor in labels:
+        yt = r["yt"]
+        data = (f'{r["name"]}|반응 지수 {r["demand"]}|영상당 평균 {_num(yt["views_per_video"])}회|'
+                f'최근 7일 영상 {yt["videos_7d"]}개|댓글 {_num(yt["comments_sum"])}개|'
+                f'검색 관심도 {(r.get("gt") or {}).get("level", "-")}|업계 언급 {r["media"]}건')
+        lead = f'<line x1="{px}" y1="{py}" x2="{lx}" y2="{ly - 4}" class="lead"/>' if abs(ly - py) > 1 else ""
+        parts.append(f'<g class="dot" tabindex="0" data-tip="{e(data)}">{lead}'
+                     f'<circle cx="{px:.1f}" cy="{py:.1f}" r="14" fill="transparent"/>'
                      f'<circle cx="{px:.1f}" cy="{py:.1f}" r="5" fill="var(--series-1)" stroke="var(--surface)" stroke-width="2"/>'
-                     f'<text x="{px + 8:.1f}" y="{py + 4:.1f}" class="dl">{e(r["name"])}</text></g>')
+                     f'<text x="{lx:.1f}" y="{ly + 4:.1f}" class="dl" text-anchor="{anchor}">{e(r["name"])}</text></g>')
     parts.append("</svg>")
-    return "".join(parts)
+    return '<div class="quadwrap">' + "".join(parts) + '<div id="tip" class="tip" hidden></div></div>'
 
 
 def write() -> Path:
@@ -143,9 +178,9 @@ body{margin:0;background:var(--surface);color:var(--fg);font:14px/1.5 -apple-sys
 .muted{color:var(--muted);font-size:12px}.small{font-size:12px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}
 .tile{border:1px solid var(--line);border-radius:8px;padding:10px}.big{font-size:20px;font-weight:600}
-.quad{width:100%;max-width:760px;height:auto}.grid{stroke:var(--line);stroke-width:1}
+.quad{width:100%;height:auto}.grid{stroke:var(--line);stroke-width:1}
 .ql{fill:var(--muted);font-size:12px}.axis{fill:var(--muted);font-size:11px}.dl{fill:var(--fg);font-size:11px}
-.dot:hover .dl{font-weight:700}
+.dot{cursor:pointer;outline:none}.dot:hover .dl,.dot:focus .dl{font-weight:700}.lead{stroke:var(--muted);stroke-width:1}.quadwrap{position:relative;max-width:900px}.tip{position:absolute;pointer-events:none;background:var(--fg);color:var(--surface);border-radius:6px;padding:6px 9px;font-size:12px;line-height:1.5;white-space:nowrap;z-index:2}
 .scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:900px}
 td,th{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
 th{font-size:12px;color:var(--muted);font-weight:500}td.n{text-align:right;font-variant-numeric:tabular-nums}
@@ -159,7 +194,7 @@ details{margin-top:8px}summary{cursor:pointer;color:var(--muted);font-size:12px}
 <div class="tiles">__TILES__</div>
 
 <h2>① 관심 vs 반응 — 무엇을 만들까</h2>
-<div class="muted">가로 = 탐님 관심(★), 세로 = 시청자 반응 지수. 가로선 = 오늘 키워드들의 반응 중간값(__CUT__). 점에 마우스를 올리면 숫자가 보입니다.</div>
+<div class="muted">가로 = 탐님 관심(★), 세로 = 시청자 반응 지수. 가로선 = 오늘 키워드들의 반응 중간값(__CUT__). 점이나 이름에 마우스를 올리거나 누르면 숫자가 보입니다.</div>
 __QUAD__
 <details><summary>반응 지수는 어떻게 계산하나</summary><div class="small">
 0~100. <b>유튜브 영상당 평균 조회</b>(최근 7일, 한국) 50점 + <b>댓글 수</b> 20점 + <b>구글 검색 관심도 변화</b>(최근 7일 vs 이전 7일) 30점.
@@ -174,5 +209,14 @@ __QUAD__
 
 <h2>④ 🆕 새로 등장한 단어</h2><div>__NEW__</div>
 <h2>⑤ 지난 24시간 많이 나온 단어</h2><div>__WORDS__</div>
+<script>
+const tip=document.getElementById('tip'),wrap=document.querySelector('.quadwrap');
+function show(g,ev){const [t,...rest]=g.dataset.tip.split('|');tip.innerHTML='<b>'+t+'</b><br>'+rest.join('<br>');tip.hidden=false;
+ const wr=wrap.getBoundingClientRect(),gr=g.querySelector('circle').getBoundingClientRect();
+ let x=gr.right-wr.left+8,y=gr.top-wr.top-8; if(x+tip.offsetWidth>wr.width) x=gr.left-wr.left-tip.offsetWidth-8; tip.style.left=x+'px';tip.style.top=Math.max(0,y)+'px'}
+document.querySelectorAll('.dot').forEach(g=>{g.addEventListener('mouseenter',ev=>show(g,ev));g.addEventListener('focus',ev=>show(g,ev));
+ g.addEventListener('click',ev=>{ev.stopPropagation();show(g,ev)});g.addEventListener('mouseleave',()=>tip.hidden=true)});
+document.addEventListener('click',()=>tip.hidden=true);
+</script>
 <p class="muted" style="margin-top:28px">출처: 유튜브 Data API(공식) · 구글 트렌드(한국) · 레이더 수집 37곳(RSS·공식 블로그·커뮤니티). 업계 언급은 "우리가 지켜보는 곳 안에서의 숫자"이며 전국 검색량이 아님.</p>
 </div></body></html>"""
