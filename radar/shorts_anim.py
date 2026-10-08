@@ -6,18 +6,70 @@ v1(shorts.py)은 정지 카드를 천천히 확대했다. v2는 장면을 시간
   - 요소가 차례로 등장, 자막은 읽는 속도에 맞춰 밝아짐
   - 로봇은 장면 종류마다 다르게 반응 (훅=점프, 비교=두리번, 숫자=가리키기, 주의=땀, 마무리=손 흔들기)
 같은 화면을 다시 찍어도 똑같이 나오도록(재현 가능) 애니메이션은 모두 render(t) 한 함수에서 계산한다.
+목소리: 네이버 클로바 보이스(기본 화자 ndain). 키가 없으면 맥 음성(say)으로 대신한다.
+효과음: 장면 시작마다 로봇 소리("비리비리")를 직접 합성해 넣는다 — 외부 음원을 쓰지 않아 저작권 걱정이 없다.
 사용: python -m radar shorts2 briefs/shorts/파일.json → out/shorts/파일-v2.mp4
 """
+import hashlib
 import html
 import json
+import os
 import re
 import subprocess
+import urllib.parse
+import urllib.request
+import wave
 from pathlib import Path
 
-from .shorts import OUT, W, H, _run
+import numpy as np
+
+from .shorts import OUT, ROOT, W, H, _run
 
 FPS = 30
 PAD = 0.35   # 장면 끝 여백(초)
+SR = 44100
+VOICE = {"tts": "clova", "speaker": "ndain", "speed": "-2"}   # 숏폼은 조금 빠르게   # 장면표에서 "voice2": {...} 로 바꿀 수 있음
+TTS_CACHE = ROOT / "data" / "tts_cache"    # 같은 문장·화자는 다시 돈 내고 만들지 않는다
+
+
+def _clova(text: str, speaker: str, speed: str, out: Path) -> bool:
+    kid, key = os.environ.get("CLOVA_API_KEY_ID"), os.environ.get("CLOVA_API_KEY")
+    if not (kid and key):
+        return False
+    TTS_CACHE.mkdir(parents=True, exist_ok=True)
+    cached = TTS_CACHE / (hashlib.sha1(f"{speaker}|{speed}|{text}".encode()).hexdigest()[:16] + ".mp3")
+    if not cached.exists():
+        body = urllib.parse.urlencode({"speaker": speaker, "text": text, "format": "mp3", "speed": speed}).encode()
+        req = urllib.request.Request("https://naveropenapi.apigw.ntruss.com/tts-premium/v1/tts", data=body, headers={
+            "X-NCP-APIGW-API-KEY-ID": kid, "X-NCP-APIGW-API-KEY": key, "Content-Type": "application/x-www-form-urlencoded"})
+        cached.write_bytes(urllib.request.urlopen(req, timeout=30).read())
+    out.write_bytes(cached.read_bytes())
+    return True
+
+
+def _chirp(kind: str, seed: int, out: Path) -> float:
+    """귀여운 로봇 소리를 합성해 wav로 저장하고 길이(초)를 돌려준다.
+    biri = 장면 시작 "비리비리", bibik = 훅 "삐빅!", down = 마무리 "삐리~" (내려가는 소리)"""
+    rng = np.random.default_rng(seed)
+    def tone(f0, f1, dur, warble=0.0):
+        t = np.arange(int(SR * dur)) / SR
+        f = np.linspace(f0, f1, t.size) * (1 + warble * np.sin(2 * np.pi * 28 * t))
+        ph = 2 * np.pi * np.cumsum(f) / SR
+        w = 0.6 * np.sin(ph) + 0.4 * np.sign(np.sin(ph)) * 0.5        # 사인 + 약한 사각파 = 장난감 로봇 음색
+        env = np.minimum(1, t / 0.004) * np.exp(-t / (dur * 0.9))
+        return w * env
+    gap = lambda d: np.zeros(int(SR * d))
+    if kind == "bibik":
+        sig = np.concatenate([tone(1500, 1900, 0.07), gap(0.03), tone(2300, 2900, 0.09)])
+    elif kind == "down":
+        sig = tone(3000, 1300, 0.34, warble=0.04)
+    else:
+        notes = rng.choice([1700, 2100, 2500, 2900, 3300], size=6)
+        sig = np.concatenate([np.concatenate([tone(f, f * 1.08, 0.042), gap(0.008)]) for f in notes])
+    sig = (sig / max(1e-9, np.abs(sig).max()) * 0.18 * 32767).astype(np.int16)
+    with wave.open(str(out), "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes(sig.tobytes())
+    return sig.size / SR
 
 
 def _fmt(s) -> str:
@@ -90,7 +142,7 @@ BOT = [
 ]
 
 JS = r"""(() => {   // 같은 페이지에 장면을 다시 넣어도 변수가 겹치지 않게 감싼다
-const BOT = %BOT%, TYPE = %TYPE%, SPEECH = %SPEECH%;
+const BOT = %BOT%, TYPE = %TYPE%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%;
 const COL = {k:'#4a5a70', w:'#e8eef5', d:'#0f2233', e:'#5ae0ff', m:'#5ae0ff', s:'#9fb0c3', c:'#ff7a6b', a:'#ffd166', A:'#7a6a3a', x:'#7ec8ff'};
 const cv = document.getElementById('bot'), g = cv.getContext('2d');
 const rv = [...document.querySelectorAll('.stage .rv')];
@@ -98,7 +150,7 @@ const n = rv.length, gap = n ? Math.min(0.45, (SPEECH * 0.5) / n) : 0;
 rv.forEach((el, i) => el.dataset.at = 0.12 + i * gap);
 const words = [...document.querySelectorAll('.cap span')];
 const total = words.reduce((a, w) => a + w.textContent.length, 0);
-let acc = 0; words.forEach(w => { w.dataset.at = (acc / total) * SPEECH; acc += w.textContent.length; });
+let acc = 0; words.forEach(w => { w.dataset.at = OFFSET + (acc / total) * SPEECH; acc += w.textContent.length; });
 document.querySelectorAll('.cnt').forEach(el => el.dataset.to = el.textContent);
 const ease = x => 1 - Math.pow(1 - Math.min(Math.max(x, 0), 1), 3);
 
@@ -126,7 +178,9 @@ function drawBot(t) {
   else if (look < 0) eyes('eeddeedd'); else if (look > 0) eyes('ddeeddee');
   if (mouth === 'o') { set(7, 8, 'm'); set(8, 8, 'm'); }
   // 안테나·가슴 불빛 깜빡
-  if (Math.floor(t * 3) % 2) for (const [x, y] of [[6,0],[7,0],[8,0],[6,1],[7,1],[8,1]]) set(x, y, 'A');
+  const chirping = t < CHIRP;                     // 로봇 소리 나는 동안: 안테나 빠르게 깜빡 + 입 벙긋
+  if (chirping ? Math.floor(t * 16) % 2 : Math.floor(t * 3) % 2) for (const [x, y] of [[6,0],[7,0],[8,0],[6,1],[7,1],[8,1]]) set(x, y, 'A');
+  if (chirping && Math.floor(t * 16) % 2) { set(7, 8, 'm'); set(8, 8, 'm'); }
   if (Math.floor(t * 1.5) % 2) { set(7, 13, 'w'); set(8, 13, 'w'); }
   // 팔
   const arms = {down: [[3,13],[3,14],[12,13],[12,14]], point: [[3,13],[3,14],[12,12],[13,11],[14,10]],
@@ -201,9 +255,10 @@ def _caption(text: str) -> str:
     return " ".join(out)
 
 
-def _page(sc: dict, i: int, n: int, speech: float) -> str:
+def _page(sc: dict, i: int, n: int, speech: float, offset: float = 0.0, chirp: float = 0.0) -> str:
     dots = "".join(f'<i class="{"on" if k == i else ""}"></i>' for k in range(n))
-    js = JS.replace("%BOT%", json.dumps(BOT)).replace("%TYPE%", json.dumps(sc["type"])).replace("%SPEECH%", f"{speech:.3f}")
+    js = (JS.replace("%BOT%", json.dumps(BOT)).replace("%TYPE%", json.dumps(sc["type"])).replace("%SPEECH%", f"{speech:.3f}")
+          .replace("%OFFSET%", f"{offset:.3f}").replace("%CHIRP%", f"{chirp:.3f}"))
     return (f"<html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"
             f'<div class="top"><span class="kicker">{_fmt(sc["kicker"])}</span><span class="dots">{dots}</span></div>'
             f'<div class="stage">{_body(sc)}</div><div class="cap">{_caption(sc["narration"])}</div>'
@@ -218,15 +273,24 @@ def render(spec_path: str) -> Path:
     work.mkdir(parents=True, exist_ok=True)
     scenes = spec["scenes"]
 
-    # 1) 음성 먼저 — 장면 길이가 음성 길이로 정해진다
+    # 1) 음성 먼저 — 장면 길이가 음성 길이로 정해진다. 장면 시작에 로봇 효과음, 목소리는 그 직후
+    voice = {**VOICE, **spec.get("voice2", {})}
     durs = []
     for i, sc in enumerate(scenes):
-        aiff, wav = work / f"s{i}.aiff", work / f"s{i}.wav"
-        speech_text = sc["narration"].replace("**", "")
-        _run(["say", "-v", spec.get("voice", "Yuna"), "-r", str(spec.get("rate", 200)), "-o", str(aiff), speech_text])
-        speech = float(_run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(aiff)]))
-        _run(["ffmpeg", "-y", "-i", str(aiff), "-af", f"apad=pad_dur={PAD}", "-ar", "44100", "-ac", "2", str(wav)])
-        durs.append((speech, speech + PAD))
+        text = sc["narration"].replace("**", "")
+        raw = work / f"s{i}.voice.mp3"
+        if not (voice["tts"] == "clova" and _clova(text, voice["speaker"], str(voice["speed"]), raw)):
+            raw = work / f"s{i}.voice.aiff"
+            _run(["say", "-v", spec.get("voice", "Yuna"), "-r", str(spec.get("rate", 200)), "-o", str(raw), text])
+        speech = float(_run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(raw)]))
+        kind = {"hook": "bibik", "outro": "down"}.get(sc["type"], "biri")
+        chirp = _chirp(kind, i, work / f"s{i}.chirp.wav")
+        offset = round(chirp - 0.04, 3)
+        _run(["ffmpeg", "-y", "-i", str(raw), "-i", str(work / f"s{i}.chirp.wav"), "-filter_complex",
+              f"[0:a]aresample={SR},aformat=channel_layouts=stereo,adelay={int(offset * 1000)}:all=1[v];"
+              f"[1:a]aformat=channel_layouts=stereo[c];[v][c]amix=inputs=2:duration=longest:normalize=0,apad=pad_dur={PAD}",
+              "-ar", str(SR), "-ac", "2", str(work / f"s{i}.wav")])
+        durs.append((speech, offset + speech + PAD, offset, chirp))
 
     # 2) 장면마다 t를 1/30초씩 움직이며 찍어서 ffmpeg로 바로 넘긴다
     from playwright.sync_api import sync_playwright
@@ -235,8 +299,8 @@ def render(spec_path: str) -> Path:
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H})
         for i, sc in enumerate(scenes):
-            speech, dur = durs[i]
-            pg.set_content(_page(sc, i, len(scenes), speech))
+            speech, dur, offset, chirp = durs[i]
+            pg.set_content(_page(sc, i, len(scenes), speech, offset, chirp))
             seg = work / f"s{i}.mp4"
             enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-i", "-",
                                     "-i", str(work / f"s{i}.wav"), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
@@ -254,5 +318,7 @@ def render(spec_path: str) -> Path:
     lst = work / "list.txt"
     lst.write_text("".join(f"file '{q.name}'\n" for q in parts), encoding="utf-8")
     final = OUT / f"{name}.mp4"
-    _run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(final)])
+    # 이어 붙이면서 전체 음량을 유튜브 기준(-14 LUFS)에 맞춘다. 화면은 다시 인코딩하지 않음
+    _run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c:v", "copy",
+          "-af", "loudnorm=I=-14:TP=-1.5:LRA=11", "-c:a", "aac", "-b:a", "160k", "-ar", str(SR), str(final)])
     return final
