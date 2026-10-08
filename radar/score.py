@@ -121,7 +121,10 @@ def build_clusters(items: list[Item], sources: dict, prev: dict[str, Item]) -> l
     scored = []
     for it in items:
         src = sources[it.source]
-        if src.get("ai_filter") and not is_ai(it, title_only=src.get("ai_filter_title_only", False)):
+        ai_line = it.extra.get("ai_line")   # 로컬 AI 분류 결과가 있으면 그것이 우선
+        if ai_line == "제외(AI 무관)":
+            continue
+        if not ai_line and src.get("ai_filter") and not is_ai(it, title_only=src.get("ai_filter_title_only", False)):
             continue
         scored.append((it, item_heat(it, src, prev.get(it.url))))
     scored.sort(key=lambda x: -x[1])
@@ -161,6 +164,10 @@ def build_clusters(items: list[Item], sources: dict, prev: dict[str, Item]) -> l
             cl.corner = max(set(lines), key=lines.count)
         elif general and max(general.values()) >= 1:
             cl.corner = max(general, key=general.get)
+        # 로컬 AI 분류(정답지 기준 84%)가 있으면 묶음 안 다수결로 덮어쓴다 — 규칙 기반(53%)보다 정확
+        ai_lines = [it.extra.get("ai_line") for it, _ in cl.items if it.extra.get("ai_line")]
+        if ai_lines:
+            cl.corner = max(set(ai_lines), key=ai_lines.count)
 
     clusters.sort(key=lambda c: -c.heat)
     top = clusters[0].heat if clusters else 1

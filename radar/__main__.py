@@ -41,6 +41,14 @@ def scan(cfg):
         print(f"  {src['name']:<16} {status[src['name']]}")
 
     store.fill_first_seen(items)
+    # 로컬 AI 분류 (새 글만, 결과 캐시). Ollama가 꺼져 있으면 규칙 기반으로 그대로 진행
+    from . import classify
+    lines = classify.classify([{"url": it.url, "title": it.title, "summary": it.summary,
+                                "source": sources[it.source]["name"]} for it in items])
+    for it in items:
+        if it.url in lines:
+            it.extra["ai_line"] = lines[it.url]
+    print(f"  AI 분류: {len(lines)}/{len(items)}건")
     path = store.save_scan(items)
     prev = store.previous_scan(exclude=path)
     clusters = build_clusters(items, sources, prev)
