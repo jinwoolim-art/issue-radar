@@ -128,7 +128,7 @@ mark.hl{color:inherit;background:linear-gradient(transparent 58%,rgba(255,209,10
 .qsrc{font-size:38px;color:var(--muted)}
 #bot{position:absolute;right:170px;top:1036px;width:144px;height:153px;image-rendering:pixelated}
 #fx{position:absolute;left:0;top:0;width:1080px;height:1920px;image-rendering:pixelated}
-#news{position:absolute;left:540px;top:300px;background:var(--hot);color:#1a1300;font:900 120px/1 "Apple SD Gothic Neo",sans-serif;
+#news{display:none;position:absolute;left:540px;top:300px;background:var(--hot);color:#1a1300;font:900 120px/1 "Apple SD Gothic Neo",sans-serif;
  padding:22px 40px;border-radius:24px;border:8px solid #1a1300;white-space:nowrap;opacity:0;letter-spacing:-3px}
 #bang{position:absolute;right:196px;top:950px;background:var(--hot);color:#1a1300;font:900 56px/1 "Apple SD Gothic Neo",sans-serif;
  padding:10px 22px;border-radius:14px;opacity:0}
@@ -161,7 +161,7 @@ const COL = {k:'#4a5a70', w:'#e8eef5', d:'#0f2233', e:'#5ae0ff', m:'#5ae0ff', s:
 const cv = document.getElementById('bot'), g = cv.getContext('2d');
 const rv = [...document.querySelectorAll('.stage .rv')];
 const n = rv.length, gap = n ? Math.min(0.45, (SPEECH * 0.5) / n) : 0;
-rv.forEach((el, i) => el.dataset.at = INTRO + 0.12 + i * gap);
+rv.forEach((el, i) => el.dataset.at = (INTRO ? INTRO - 0.2 : 0.12) + i * gap);   // 오프닝 글자가 흩어지고 로봇이 착지하는 순간 본 제목 등장
 const words = [...document.querySelectorAll('.cap span')];
 const total = words.reduce((a, w) => a + w.textContent.length, 0);
 let acc = 0; words.forEach(w => { w.dataset.at = OFFSET + (acc / total) * SPEECH; acc += w.textContent.length; });
@@ -295,6 +295,66 @@ function introState(t) {
   const q = (t - 1.25) / 0.3, wob = Math.exp(-q * 4) * Math.cos(q * 14);      // 콩: 찌그러졌다 출렁
   return {x: HOME[0], y: HOME[1] + 6 * wob, sx: 1 + 0.25 * wob, sy: 1 - 0.25 * wob};
 }
+// 도트 영문 서체 5x7 (직접 그림 — 외부 서체 없음). 가독성보다 '데이터가 쏟아지는' 분위기용
+const FONT = {A:'01110100011000111111100011000110001',B:'11110100011000111110100011000111110',C:'01110100011000010000100001000101110',
+D:'11110100011000110001100011000111110',E:'11111100001000011110100001000011111',F:'11111100001000011110100001000010000',
+G:'01110100011000010111100011000101111',H:'10001100011000111111100011000110001',I:'01110001000010000100001000010001110',
+J:'00111000100001000010000101001001100',K:'10001100101010011000101001001010001',L:'10000100001000010000100001000011111',
+M:'10001110111010110101100011000110001',N:'10001110011010110011100011000110001',O:'01110100011000110001100011000101110',
+P:'11110100011000111110100001000010000',Q:'01110100011000110001101011001001101',R:'11110100011000111110101001001010001',
+S:'01111100001000001110000010000111110',T:'11111001000010000100001000010000100',U:'10001100011000110001100011000101110',
+V:'10001100011000110001100010101000100',W:'10001100011000110101101011010101010',X:'10001100010101000100010101000110001',
+Y:'10001100010101000100001000010000100',Z:'11111000010001000100010001000011111',0:'01110100011001110101110011000101110',
+1:'00100011000010000100001000010001110',2:'01110100010000100010001000100011111',3:'11110000010000101110000010000111110',
+4:'00010001100101010010111110001000010',5:'11111100001111000001000011000101110',6:'00110010001000011110100011000101110',
+7:'11111000010001000100010000100001000',8:'01110100011000101110100011000101110',9:'01110100011000101111000010001001100',
+'!':'00100001000010000100001000000000100','?':'01110100010000100010001000000000100'};
+const ITXT = document.getElementById('news').textContent.toUpperCase();
+const LR = rng(11), LCOL = ['#ffd166', '#5ae0ff', '#f4f6f8'];
+const LETTERS = (() => {
+  if (!INTRO) return [];
+  const out = [], chars = [...ITXT], sizes = chars.map(() => 12 + Math.floor(LR() * 14));
+  let width = chars.reduce((a, ch, i) => a + (ch === ' ' ? 34 : sizes[i] * 6.2), 0);
+  const k = Math.min(1, 960 / width); let x = 540 - width * k / 2;
+  chars.forEach((ch, i) => {                         // 큰 글자: BIG NEWS! — 크기·높이 제각각
+    if (ch === ' ') { x += 34 * k; return; }
+    const sz = Math.max(5, Math.round(sizes[i] * k));
+    out.push({ch, x, y: 340 - 3.5 * sz + (LR() - 0.5) * 80, s: sz, col: LCOL[i % 3], a: 1, at: 0.45 + out.length * 0.03, seed: i * 17});
+    x += sz * 6.2;
+  });
+  const pool = [...ITXT.replace(/[^A-Z0-9]/g, '')] .concat(['0', '1', '0', '1']);
+  for (let i = 0; i < 36; i++) {                     // 작은 글자·0/1: 로봇 둘레에 데이터처럼 흩뿌림
+    const ang = LR() * Math.PI * 2, rad = 300 + LR() * 240, sz = 4 + Math.floor(LR() * 7);
+    const xx = Math.min(1020, Math.max(30, 540 + Math.cos(ang) * rad)), yy = Math.min(1480, Math.max(230, 860 + Math.sin(ang) * rad * 1.15));
+    out.push({ch: pool[Math.floor(LR() * pool.length)], x: xx, y: yy, s: sz, col: LCOL[Math.floor(LR() * 3)], a: 0.3 + LR() * 0.6,
+              at: 0.45 + LR() * 0.3, seed: 100 + i * 31});
+  }
+  return out;
+})();
+function drawGlyph(ch, x, y, s, dissolve, seed) {
+  const bits = FONT[ch]; if (!bits) return;
+  const gp = Math.max(1, Math.round(s * 0.18));     // 점 사이 틈 → 전광판 도트 느낌
+  for (let i = 0; i < 35; i++) {
+    if (bits[i] !== '1') continue;
+    if (dissolve && ((i * 131 + seed * 977) % 100) / 100 < dissolve) continue;   // 사라질 때 도트가 부서지듯
+    f.fillRect(Math.round(x + (i % 5) * s), Math.round(y + Math.floor(i / 5) * s), s - gp, s - gp);
+  }
+}
+function drawLetters(t) {
+  const e = Math.min(1, Math.max(0, (t - 0.95) / 0.27));     // 로봇 출발 → 바깥으로 흩어지며 소멸
+  for (const L of LETTERS) {
+    const u = t - L.at; if (u < 0 || e >= 1) continue;
+    if (u < 0.15 && Math.floor(t * 40 + L.seed) % 3 === 0) continue;                // 등장할 때 지지직
+    let x = L.x, y = L.y;
+    if (Math.floor(t * 25 + L.seed) % 13 === 0) x += 14;                              // 가끔 옆으로 튐(글리치)
+    const cx = x + L.s * 2.5, cy = y + L.s * 3.5;
+    x += (cx - 540) * e * 0.9; y += (cy - 860) * e * 0.9;
+    f.globalAlpha = L.a * (1 - e); f.fillStyle = L.col;
+    drawGlyph(L.ch, x, y, u < 0.06 ? Math.round(L.s * 1.3) : L.s, e, L.seed);
+  }
+  f.globalAlpha = 1;
+}
+
 function drawIntro(t) {
   const grid = BOT.map(r => r.split(''));
   const set = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16) grid[y][x] = ch; };
@@ -311,14 +371,10 @@ function drawIntro(t) {
   grid.forEach((row, y) => row.forEach((ch, x) => { if (ch !== '.') { g.fillStyle = COL[ch]; g.fillRect(x, y, 1, 1); } }));
   const st = introState(t);
   cv.style.transform = `translate(${st.x - HOME[0]}px, ${st.y - HOME[1]}px) scale(${st.sx}, ${st.sy})`;
-  // 말풍선 "빅뉴스!!!": 툭 튀어나왔다가 출발할 때 사라짐
-  const nw = document.getElementById('news');
-  const pn = t < 0.45 ? 0 : t < 0.9 ? 1 : Math.max(0, 1 - (t - 0.9) / 0.15);
-  const bounce = t < 0.45 ? 0 : 1 + 0.3 * Math.exp(-(t - 0.45) * 10) * Math.cos((t - 0.45) * 26);
-  nw.style.opacity = pn; nw.style.transform = `translateX(-50%) rotate(-6deg) scale(${bounce})`;
   // 배경 어둡게 + 안테나 찌릿 불꽃 + 착지 먼지
   f.clearRect(0, 0, 1080, 1920);
   f.fillStyle = `rgba(4,8,14,${0.6 * (t < 0.9 ? 1 : Math.max(0, 1 - (t - 0.9) / 0.35))})`; f.fillRect(0, 0, 1080, 1920);
+  drawLetters(t);
   if (t > 0.25 && t < 0.9 && Math.floor(t * 20) % 2) {
     const ax = st.x + (7.5 - 8) * 9 * st.sx, ay = st.y + (0.5 - 8.5) * 9 * st.sy, Q = 14;
     f.fillStyle = '#ffd166';
@@ -403,7 +459,7 @@ def _caption(text: str) -> str:
 
 
 def _page(sc: dict, i: int, n: int, speech: float, offset: float = 0.0, chirp: float = 0.0,
-          intro: float = 0.0, intro_text: str = "빅뉴스!!!") -> str:
+          intro: float = 0.0, intro_text: str = "BIG NEWS!") -> str:
     dots = "".join(f'<i class="{"on" if k == i else ""}"></i>' for k in range(n))
     js = (JS.replace("%BOT%", json.dumps(BOT)).replace("%TYPE%", json.dumps(sc["type"])).replace("%MOOD%", json.dumps(sc.get("mood", ""))).replace("%SPEECH%", f"{speech:.3f}")
           .replace("%OFFSET%", f"{offset:.3f}").replace("%CHIRP%", f"{chirp:.3f}").replace("%INTRO%", f"{intro:.3f}"))
@@ -450,7 +506,7 @@ def render(spec_path: str) -> Path:
         pg = b.new_page(viewport={"width": W, "height": H})
         for i, sc in enumerate(scenes):
             speech, dur, offset, chirp, intro = durs[i]
-            pg.set_content(_page(sc, i, len(scenes), speech, offset, chirp, intro, spec.get("intro_text", "빅뉴스!!!")))
+            pg.set_content(_page(sc, i, len(scenes), speech, offset, chirp, intro, spec.get("intro_text", "BIG NEWS!")))
             seg = work / f"s{i}.mp4"
             enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-i", "-",
                                     "-i", str(work / f"s{i}.wav"), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
