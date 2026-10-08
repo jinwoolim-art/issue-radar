@@ -28,7 +28,9 @@ from .shorts import OUT, ROOT, W, H, _run
 FPS = 30
 PAD = 0.35   # 장면 끝 여백(초)
 # 채널 오프닝 종류와 길이(초). 행동 → 뚝 멈춤(0.22초) → 자리로 슝(0.35) → 콩(0.15) → 브리핑
-INTROS = {"bignews": 1.4, "dance": round(4 * 60 / 128 + 0.22 + 0.5, 3), "fly": 2.22, "rocket": 2.22}
+INTROS = {"bignews": 1.4, "dance": round(4 * 60 / 128 + 0.22 + 0.5, 3), "fly": 2.22, "rocket": 2.22,
+          # 내용과 엮은 오프닝: 패션쇼·광고팝업·사이렌·글자폭탄·쇼핑카트·슬롯머신·돋보기·영수증
+          "outfit": 2.32, "adpop": 2.32, "siren": 2.32, "textflood": 2.32, "cart": 2.22, "slot": 2.32, "magnifier": 2.32, "receipt": 2.32}
 SR = 44100
 VOICE = {"tts": "clova", "speaker": "ndain", "speed": "-2"}   # 숏폼은 조금 빠르게   # 장면표에서 "voice2": {...} 로 바꿀 수 있음
 TTS_CACHE = ROOT / "data" / "tts_cache"    # 같은 문장·화자는 다시 돈 내고 만들지 않는다
@@ -114,11 +116,44 @@ def _intro_sfx(kind: str, total: float, out: Path) -> float:
         whine = 0.15 * np.sin(2 * np.pi * np.cumsum(np.linspace(220, 440, n)) / SR)
         put(jet + whine, 0)
         put(tone(1800, 600, 0.22, square=0.2), m + 0.02, 0.7)
+    elif kind == "outfit":      # 찰칵! + 슉 ×4 (패션쇼)
+        for k in range(4):
+            put(noise(0.025), k * 0.4 + 0.01, 0.9); put(tone(4200, 3600, 0.03, square=0.2), k * 0.4 + 0.02, 0.5)
+            put(tone(700, 1400, 0.12, square=0.1), k * 0.4 + 0.12, 0.25)
+    elif kind == "adpop":       # 띵!(광고) → 퍽!(쳐냄) ×3 → 마지막은 얼굴에 철썩
+        for at, side in [(0.15, 1), (0.5, 1), (0.85, 1), (1.25, 0)]:
+            put(tone(1568, 1568, 0.12, square=0.1), at, 0.6); put(tone(2093, 2093, 0.18, square=0.1), at + 0.06, 0.5)
+            if side: put(noise(0.06, smooth=6), at + 0.25, 1.0)
+        put(noise(0.08, smooth=3), 1.25, 1.0)
+    elif kind == "siren":       # 사각사각 일기 → 삐뽀삐뽀
+        for k in range(16): put(noise(0.035, smooth=2), 0.05 + k * 0.05, 0.25)
+        for k in range(int((m - 0.85) / 0.18) + 1):
+            f0 = 950 if k % 2 == 0 else 700
+            put(tone(f0, f0, 0.18, square=0.6), 0.85 + k * 0.18, 0.6)
+    elif kind == "textflood":   # 툭툭툭 쌓이다가 → 뽁! 탈출
+        for k in range(10): put(tone(160, 80, 0.08, square=0.0), 0.30 + k * 0.1, 0.9)
+        put(tone(500, 1300, 0.1, square=0.2), 1.25, 0.8)
+    elif kind == "cart":        # 덜덜덜 바퀴 → 끼이익 → 딩동
+        tt = np.arange(int(SR * 0.75)) / SR
+        put(noise(0.75, smooth=4, decay=10) * (0.55 + 0.45 * np.sign(np.sin(2 * np.pi * 30 * tt))), 0, 0.6)
+        put(tone(1700, 1400, 0.35, warble=0.05, square=0.6), 0.75, 0.6)
+        put(tone(1319, 1319, 0.18, square=0.1), 1.1, 0.5); put(tone(1047, 1047, 0.25, square=0.1), 1.25, 0.5)
+    elif kind == "slot":        # 철컥 → 촤라라락 → 띵(7) → 띵(?) 엇박
+        put(noise(0.06, smooth=10), 0.15, 0.8); put(tone(300, 180, 0.08, square=0.3), 0.15, 0.6)
+        for k in range(int((1.25 - 0.3) / 0.045)): put(tone(2800, 2800, 0.012, square=0.5), 0.3 + k * 0.045, 0.4)
+        put(tone(1568, 1568, 0.2, square=0.1), 1.0, 0.7); put(tone(1047, 990, 0.25, square=0.1), 1.25, 0.7)
+    elif kind == "magnifier":   # 흠? 흠? 흠? → 쾅! 도장
+        for at in (0.2, 0.55, 0.9): put(tone(800, 650, 0.09, square=0.2), at, 0.5)
+        put(tone(130, 55, 0.22, square=0.7), 1.05, 1.0); put(noise(0.1, smooth=4), 1.05, 0.8)
+    elif kind == "receipt":     # 지이이익 인쇄 → 띵! (999999)
+        tt = np.arange(int(SR * 1.2)) / SR
+        put(noise(1.2, smooth=2, decay=10) * (0.5 + 0.5 * np.sign(np.sin(2 * np.pi * 22 * tt))), 0.1, 0.45)
+        put(tone(2093, 2093, 0.3, square=0.1), 1.3, 0.7)
     if kind != "bignews":
         put(tone(1200, 1900, 0.12), m + 0.04, 0.8)          # 앗! "삐?"
     put(tone(2600, 700, 0.3, warble=0.02), d0)              # 슝~
     put(tone(420, 240, 0.09), d0 + 0.33)                    # 콩
-    peak = {"dance": 0.5, "rocket": 0.36, "fly": 0.32}.get(kind, 0.22)   # 댄스 비트는 목소리와 비슷한 크기로 신나게
+    peak = {"bignews": 0.22, "dance": 0.5, "rocket": 0.36}.get(kind, 0.32)   # 댄스 비트는 목소리와 비슷한 크기로 신나게
     sig = (buf / max(1e-9, np.abs(buf).max()) * peak * 32767).astype(np.int16)
     with wave.open(str(out), "wb") as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR); w.writeframes(sig.tobytes())
@@ -212,7 +247,7 @@ mark.hl{color:inherit;background:linear-gradient(transparent 58%,rgba(255,209,10
 .quote{border-left:14px solid var(--accent);padding:10px 0 10px 40px;font-size:60px;font-weight:800;line-height:1.35}
 .qsrc{font-size:38px;color:var(--muted)}
 #bot{position:absolute;right:170px;top:1036px;width:144px;height:153px;image-rendering:pixelated}
-#fx{position:absolute;left:0;top:0;width:1080px;height:1920px;image-rendering:pixelated}
+#fx,#topfx{position:absolute;left:0;top:0;width:1080px;height:1920px;image-rendering:pixelated}
 #news{display:none;position:absolute;left:540px;top:300px;background:var(--hot);color:#1a1300;font:900 120px/1 "Apple SD Gothic Neo",sans-serif;
  padding:22px 40px;border-radius:24px;border:8px solid #1a1300;white-space:nowrap;opacity:0;letter-spacing:-3px}
 #bang{position:absolute;right:196px;top:950px;background:var(--hot);color:#1a1300;font:900 56px/1 "Apple SD Gothic Neo",sans-serif;
@@ -242,7 +277,7 @@ BOT = [
 
 JS = r"""(() => {   // 같은 페이지에 장면을 다시 넣어도 변수가 겹치지 않게 감싼다
 const BOT = %BOT%, TYPE = %TYPE%, MOOD = %MOOD%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%, INTRO = %INTRO%, FXAT = %FXAT%, IK = %IKIND%;
-const COL = {k:'#4a5a70', w:'#e8eef5', d:'#0f2233', e:'#5ae0ff', m:'#5ae0ff', s:'#9fb0c3', c:'#ff7a6b', a:'#ffd166', A:'#7a6a3a', x:'#7ec8ff'};
+const COL = {k:'#4a5a70', w:'#e8eef5', d:'#0f2233', e:'#5ae0ff', m:'#5ae0ff', s:'#9fb0c3', c:'#ff7a6b', a:'#ffd166', A:'#7a6a3a', x:'#7ec8ff', n:'#2b4a7a', p:'#ff8fb1', g:'#7bd88f', y:'#ffd166', B:'#05070a'};
 const cv = document.getElementById('bot'), g = cv.getContext('2d');
 const rv = [...document.querySelectorAll('.stage .rv')];
 const n = rv.length, gap = n ? Math.min(0.45, (SPEECH * 0.5) / n) : 0;
@@ -390,6 +425,23 @@ function actPose(t) {                                     // 행동 중 로봇 �
     const up = 230 * (1 - Math.pow(1 - clamp01(t / 1.2), 2));
     return {x: MID[0] + 3 * Math.sin(t * 33), y: MID[1] - up + 5 * Math.sin(t * 41), sx: BIG, sy: BIG, rot: 4 * Math.sin(t * 6)};
   }
+  if (IK === 'cart') {                                   // 카트 타고 질주 → 끼이익 급정거
+    const p = 1 - Math.pow(1 - clamp01(t / 0.75), 3), ride = t < 0.75;
+    const lean = t >= 0.75 ? -12 * Math.exp(-(t - 0.75) * 5) * Math.cos((t - 0.75) * 18) : 8;
+    return {x: -320 + (MID[0] + 320) * p, y: MID[1] - 60 + (ride ? 7 * Math.sin(t * 45) : 0), sx: BIG, sy: BIG, rot: lean};
+  }
+  if (IK === 'textflood') {                              // 자막 상자에 파묻혔다가 뽁! 튀어나옴
+    const u = clamp01((t - 1.25) / 0.15);
+    return {x: MID[0], y: MID[1] - 400 * (1 - Math.pow(1 - u, 2)) + (t > 1.4 ? 10 * Math.sin((t - 1.4) * 20) * Math.exp(-(t - 1.4) * 6) : 0), sx: BIG, sy: BIG, rot: 0};
+  }
+  if (IK === 'outfit') {                                 // 패션쇼: 찰칵마다 포즈 반대로
+    const li = Math.min(3, Math.floor(t / 0.4)), snap = Math.exp(-(t % 0.4) * 14);
+    return {x: MID[0], y: MID[1] - 8 * snap, sx: BIG, sy: BIG, rot: li % 2 ? 7 : -7};
+  }
+  if (IK === 'siren' && t > 0.85) return {x: MID[0] + (Math.floor(t * 30) % 2 ? 6 : -6), y: MID[1], sx: BIG, sy: BIG, rot: 0};
+  if (IK === 'slot' && t > 1.3) return {x: MID[0], y: MID[1], sx: BIG, sy: BIG, rot: 9 * clamp01((t - 1.3) / 0.1)};   // 갸우뚱
+  if (IK === 'magnifier' && t > 1.05 && t < 1.2) return {x: MID[0] + (Math.floor(t * 40) % 2 ? 8 : -8), y: MID[1], sx: BIG, sy: BIG, rot: 0};  // 쾅!
+  if (['adpop', 'siren', 'slot', 'magnifier', 'receipt'].includes(IK)) return {x: MID[0], y: MID[1] + 6 * Math.sin(t * 4), sx: BIG, sy: BIG, rot: 0};
   const pop = t > 0.45 ? 1 + 0.14 * Math.exp(-(t - 0.45) * 9) * Math.cos((t - 0.45) * 30) : 1;   // bignews: 헉! 움찔
   const shake = (t > 0.45 && t < 0.7) ? (Math.floor(t * 40) % 2 ? 7 : -7) : 0;
   return {x: MID[0] + shake, y: MID[1], sx: BIG * pop, sy: BIG * pop, rot: 0};
@@ -447,13 +499,13 @@ const LETTERS = (() => {
   }
   return out;
 })();
-function drawGlyph(ch, x, y, s, dissolve, seed) {
+function drawGlyph(ch, x, y, s, dissolve, seed, ctx = f) {
   const bits = FONT[ch]; if (!bits) return;
   const gp = Math.max(1, Math.round(s * 0.18));     // 점 사이 틈 → 전광판 도트 느낌
   for (let i = 0; i < 35; i++) {
     if (bits[i] !== '1') continue;
     if (dissolve && ((i * 131 + seed * 977) % 100) / 100 < dissolve) continue;   // 사라질 때 도트가 부서지듯
-    f.fillRect(Math.round(x + (i % 5) * s), Math.round(y + Math.floor(i / 5) * s), s - gp, s - gp);
+    ctx.fillRect(Math.round(x + (i % 5) * s), Math.round(y + Math.floor(i / 5) * s), s - gp, s - gp);
   }
 }
 function drawLetters(t) {
@@ -487,7 +539,21 @@ function wing(st, up, side) {
   }));
 }
 function hashf(a, b) { const x = Math.sin(a * 12.9898 + b * 78.233) * 43758.5453; return x - Math.floor(x); }
-function drawAct(t, st) {                                  // 행동 중 소품: 디스코 / 날개·깃털 / 제트 불꽃·연기
+function drawAct(t, st) {
+  if (IK === 'siren' && t >= 0.85 && t < M) {                               // 삐뽀삐뽀 빨강·파랑
+    const red = Math.floor((t - 0.85) / 0.18) % 2 === 0;
+    f.fillStyle = red ? 'rgba(255,60,60,0.3)' : 'rgba(60,120,255,0.3)'; f.fillRect(0, 0, 1080, 1920);
+    f.fillStyle = red ? 'rgba(255,90,90,0.35)' : 'rgba(90,150,255,0.35)';
+    for (let k = 0; k < 6; k++) f.fillRect(red ? k * 40 : 1080 - (k + 1) * 40, 0, 40, 1920 - k * 220);
+  }
+  if (IK === 'cart') {
+    const q = 9 * st.sx * 0.9, [x0, y0] = EDGE(st, 0, 16.6);
+    spr(f, Math.floor(t * 20) % 2 ? CART : CART2, CARTPAL, x0, y0, q);
+    if (t < 0.75) { f.fillStyle = 'rgba(232,238,245,0.5)';                 // 속도선
+      for (let k = 0; k < 8; k++) { const len = 120 + hashf(k, 2) * 260; f.fillRect(Math.round(st.x - 330 - len - hashf(k, 3) * 220), Math.round(650 + hashf(k, 1) * 750), Math.round(len), 10); } }
+    if (t >= 0.75 && t < 1.05) { f.fillStyle = '#ffd166';                  // 바퀴 불꽃
+      for (let k = 0; k < 8; k++) f.fillRect(Math.round(x0 + 2 * q + hashf(k, Math.floor(t * 30)) * 12 * q), Math.round(y0 + 9 * q + hashf(Math.floor(t * 30), k) * 40), 12, 12); }
+  }                                  // 행동 중 소품: 디스코 / 날개·깃털 / 제트 불꽃·연기
   if (IK === 'dance' && t < M) {
     const b = Math.floor(t / BEAT), ph = (t / BEAT) % 1, cols = ['#ffd166', '#5ae0ff', '#ff7a6b', '#7bd88f', '#c792ff'];
     for (let k = 0; k < 12; k++) {                        // 바닥 타일이 박자마다 색 바뀜
@@ -537,6 +603,101 @@ function drawAct(t, st) {                                  // 행동 중 소품:
   }
 }
 
+const tg = document.getElementById('topfx').getContext('2d');
+const EDGE = (st, c, r) => [st.x + (c - 8) * 9 * st.sx, st.y + (r - 8.5) * 9 * st.sy];      // 로봇 픽셀 칸의 왼쪽 위
+function spr(ctx, rows, pal, x, y, q) { rows.forEach((row, r) => [...row].forEach((ch, c) => { if (ch !== '.') {
+  ctx.fillStyle = pal[ch]; ctx.fillRect(Math.round(x + c * q), Math.round(y + r * q), Math.ceil(q), Math.ceil(q)); } })); }
+function withRot(st, fn) { tg.save(); tg.translate(st.x, st.y); tg.rotate((st.rot || 0) * Math.PI / 180); tg.translate(-st.x, -st.y); fn(); tg.restore(); }
+const LOOKS = [{body: 'n'}, {body: 'w', bow: true, glasses: true}, {body: 'y', hat: 'top'}, {body: 'p', hat: 'cap', glasses: true}];
+const HAT_TOP = ["..BBBB..", "..BBBB..", "..BBBB..", "..cccc..", "BBBBBBBB"], HAT_CAP = ["..gggggg..", ".gggggggg.", "gggggggggggg"];
+const HATPAL = {B: '#05070a', c: '#ff7a6b', g: '#7bd88f'};
+const ADS = [{at: 0.15, x: 200, y: 560, side: -1}, {at: 0.5, x: 860, y: 680, side: 1}, {at: 0.85, x: 190, y: 1200, side: -1}, {at: 1.25, side: 0}];
+const BOOK = ["bbbbbbbbbbbb", "bwwwwwbwwwwb", "bwwwwwbwwwwb", "bwwwwwbwwwwb", "bbbbbbbbbbbb"], BOOKPAL = {b: '#8b5a2b', w: '#f4f6f8'};
+const BOXES = Array.from({length: 10}, (_, i) => ({at: 0.08 + i * 0.1, x: MID[0] + (IR() - 0.5) * 240, w: 320 + Math.floor(IR() * 360),
+                                                   ty: 1320 - (i + 1) * 70, vx: (IR() - 0.5) * 2400, vy: -700 - IR() * 500, hot: IR() < 0.3}));
+const CART = ["k...............", ".kkkkkkkkkkkkkk.", ".k.k.k.k.k.k.kk.", ".kkkkkkkkkkkkkk.", "..k.k.k.k.k.k.k.", "..kkkkkkkkkkkkk.",
+              "...k........k...", "..kkkkkkkkkkk...", "..oo........oo.."];
+const CART2 = CART.slice(0, 8).concat(["..OO........OO.."]), CARTPAL = {k: '#9fb0c3', o: '#4a5a70', O: '#7a8aa0'};
+const SYMS = ['7', 'A', 'I', '?', '!', 'B'];
+function adBox(x, y, rot, sc) {
+  tg.save(); tg.translate(x, y); tg.rotate(rot); tg.scale(sc, sc);
+  tg.fillStyle = '#1a1300'; tg.fillRect(-123, -73, 246, 146); tg.fillStyle = '#ffd166'; tg.fillRect(-115, -65, 230, 130);
+  tg.fillStyle = '#1a1300'; drawGlyph('A', -66, -42, 12, 0, 1, tg); drawGlyph('D', 6, -42, 12, 0, 1, tg); drawGlyph('X', 88, -58, 4, 0, 1, tg);
+  tg.restore();
+}
+function drawTop(t, st) {
+  const q = 9 * st.sx;
+  if (IK === 'outfit' && t < M) {
+    const L = LOOKS[Math.min(3, Math.floor(t / 0.4))], [hx, hy] = EDGE(st, 4, 3);
+    withRot(st, () => { if (L.hat === 'top') spr(tg, HAT_TOP, HATPAL, hx, hy - 5 * q, q); if (L.hat === 'cap') spr(tg, HAT_CAP, HATPAL, hx - q, hy - 3 * q, q); });
+    const fl = 1 - (t % 0.4) / 0.08;                                        // 찰칵 플래시
+    if (fl > 0) { tg.fillStyle = `rgba(255,255,255,${0.55 * fl})`; tg.fillRect(0, 0, 1080, 1920); }
+  }
+  if (IK === 'adpop') for (const d of ADS) {
+    const u = t - d.at; if (u < 0) continue;
+    let x, y, rot = 0;
+    if (d.side) { x = d.x; y = d.y; const v = u - 0.25; if (v > 0) { x += d.side * 2400 * v; y += -600 * v + 1500 * v * v; rot = d.side * 8 * v; } }
+    else { [x, y] = SP(st, 8, 7); if (t >= D0) { const v = t - D0; y += 1500 * v * v; rot = 2 * v; } }    // 마지막 광고는 얼굴에 철썩
+    if (x < -300 || x > 1380 || y > 2100) continue;
+    adBox(x, y, rot, u < 0.1 ? 0.6 + 4 * u : 1);
+  }
+  if (IK === 'siren' && t < 0.85) withRot(st, () => {
+    const [bx, by] = EDGE(st, 2, 11);
+    spr(tg, BOOK, BOOKPAL, bx, by, q);
+    tg.fillStyle = '#4a5a70';
+    for (let k = 0; k < Math.floor(clamp01(t / 0.8) * 6); k++)               // 사각사각 써지는 줄
+      tg.fillRect(Math.round(bx + 7.3 * q), Math.round(by + (1.3 + Math.floor(k / 2)) * q + (k % 2) * q * 0.5), Math.round(q * (k % 2 ? 1.8 : 2.8)), Math.round(q * 0.25));
+    const pp = clamp01(t / 0.8);
+    tg.fillStyle = '#ffd166'; tg.fillRect(Math.round(bx + (7.5 + (pp * 9) % 3) * q), Math.round(by + (pp * 3 - 1) * q), Math.round(q * 0.5), Math.round(q * 2));
+  });
+  if (IK === 'textflood') for (const b of BOXES) {
+    const u = t - b.at; if (u < 0) continue;
+    let y = -120 + (b.ty + 120) * Math.min(1, (u / 0.22) ** 2), x = b.x, a = 1;
+    if (t > 1.25) { const v = t - 1.25; x += b.vx * v; y += b.vy * v + 1600 * v * v; a = Math.max(0, 1 - v / 0.4); }
+    if (a <= 0) continue;
+    tg.globalAlpha = a; tg.fillStyle = '#33404f'; tg.fillRect(Math.round(x - b.w / 2), Math.round(y), b.w, 66);
+    tg.fillStyle = '#18202b'; tg.fillRect(Math.round(x - b.w / 2 + 6), Math.round(y + 6), b.w - 12, 54);
+    tg.fillStyle = b.hot ? '#ffd166' : '#e8eef5'; tg.fillRect(Math.round(x - b.w / 2 + 22), Math.round(y + 18), Math.round(b.w * 0.62), 12);
+    tg.fillStyle = '#9aa7b4'; tg.fillRect(Math.round(x - b.w / 2 + 22), Math.round(y + 38), Math.round(b.w * 0.4), 8);
+    tg.globalAlpha = 1;
+  }
+  if (IK === 'slot' && t < D0) withRot(st, () => {
+    const [sx0, sy0] = EDGE(st, 4, 5), w = 8 * q, h = 5 * q, s = Math.floor(Math.min(w / 2 / 6, h / 8));
+    tg.fillStyle = '#0f2233'; tg.fillRect(sx0, sy0, w, h); tg.fillStyle = '#4a5a70'; tg.fillRect(sx0 + w / 2 - q * 0.2, sy0, q * 0.4, h);
+    for (const [k, stop, fin] of [[0, 1.0, '7'], [1, 1.25, '?']]) {         // 촤라라락 → 7 / ? 로 엇갈림
+      const rx = sx0 + k * w / 2 + (w / 2 - 5 * s) / 2, base = sy0 + (h - 7 * s) / 2;
+      tg.save(); tg.beginPath(); tg.rect(sx0 + k * w / 2, sy0, w / 2, h); tg.clip();
+      if (t < stop) { const pos = t * 16 + k * 0.5, off = (pos % 1) * 8 * s; tg.fillStyle = '#5ae0ff';
+        drawGlyph(SYMS[Math.floor(pos) % 6], rx, base - 8 * s + off, s, 0, 1, tg); drawGlyph(SYMS[(Math.floor(pos) + 1) % 6], rx, base + off, s, 0, 1, tg); }
+      else { tg.fillStyle = fin === '7' ? '#ffd166' : '#ff7a6b'; drawGlyph(fin, rx, base + Math.exp(-(t - stop) * 14) * Math.cos((t - stop) * 30) * s, s, 0, 1, tg); }
+      tg.restore();
+    }
+    const [lx, ly] = EDGE(st, 15, 6), pull = t < 0.15 ? 0 : t < 0.3 ? (t - 0.15) / 0.15 : 1 - clamp01((t - 0.3) / 0.2);
+    tg.fillStyle = '#9fb0c3'; tg.fillRect(lx, ly + pull * 3 * q, q * 0.5, 4 * q - pull * 3 * q);
+    tg.fillStyle = '#ff7a6b'; tg.fillRect(lx - q * 0.4, ly - q + pull * 3 * q, q * 1.3, q * 1.3);
+    if (t > 1.3) { tg.fillStyle = '#ffd166'; const [qx, qy] = EDGE(st, 12, -1); for (let k = 0; k < 2; k++) if (t > 1.3 + k * 0.1) drawGlyph('?', qx + k * 70, qy - k * 50, 10, 0, 1, tg); }
+  });
+  if (IK === 'magnifier' && t < D0) {
+    const cx = st.x + 60 + 150 * Math.sin(Math.min(t, 1.05) * 3.2), cy = st.y - 80, R = 125;
+    tg.fillStyle = 'rgba(15,34,51,0.9)'; tg.beginPath(); tg.arc(cx, cy, R, 0, 6.283); tg.fill();
+    tg.fillStyle = '#5ae0ff'; tg.fillRect(Math.round(cx - 45), Math.round(cy - 45), 90, 90);          // 렌즈 속 커다란 눈
+    tg.fillStyle = '#e8eef5'; tg.fillRect(Math.round(cx - 45), Math.round(cy - 45), 24, 24);
+    for (let a = 0; a < 40; a++) { const an = a / 40 * 6.283; tg.fillStyle = '#9fb0c3'; tg.fillRect(Math.round(cx + Math.cos(an) * R - 7), Math.round(cy + Math.sin(an) * R - 7), 14, 14); }
+    tg.fillStyle = '#8b5a2b'; for (let k = 0; k < 8; k++) tg.fillRect(Math.round(cx + R * 0.72 + k * 16), Math.round(cy + R * 0.72 + k * 16), 22, 22);
+    if (t > 1.05) { const u = t - 1.05, sc = u < 0.08 ? 2.2 - 15 * u : 1;      // 쾅! 판정 도장
+      tg.save(); tg.translate(820, 560); tg.rotate(-0.25); tg.scale(sc, sc); tg.fillStyle = '#ff7a6b'; drawGlyph('X', -70, -98, 28, 0, 1, tg);
+      tg.fillStyle = '#ffd166'; ['F', 'A', 'K', 'E', '?'].forEach((ch, i) => drawGlyph(ch, -110 + i * 46, 110, 7, 0, 1, tg)); tg.restore(); }
+  }
+  if (IK === 'receipt' && t < D0) withRot(st, () => {                        // 가슴에서 영수증이 지이이익
+    const [cx, cy] = SP(st, 7.5, 13.5), w = 190, L = 1000 * Math.pow(clamp01(t / 1.3), 1.4);
+    tg.fillStyle = '#f4f6f8'; tg.fillRect(Math.round(cx - w / 2), Math.round(cy), w, Math.round(L));
+    tg.fillStyle = '#9aa7b4';
+    for (let k = 0; k * 34 < L; k++) { const yy = cy + L - 30 - k * 34; if (yy < cy + 40) break;
+      [...String(Math.floor(hashf(k, 7) * 900000 + 100000))].forEach((d, i) => drawGlyph(d, cx - w / 2 + 14 + i * 28, yy, 4, 0, 1, tg)); }
+    if (t > 1.3) { tg.fillStyle = '#ff7a6b'; [...'999999'].forEach((d, i) => drawGlyph(d, cx - w / 2 + 12 + i * 29, cy + 6, 5, 0, 1, tg)); }
+  });
+}
+
 function drawIntro(t) {
   const grid = BOT.map(r => r.split(''));
   const set = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16) grid[y][x] = ch; };
@@ -550,6 +711,37 @@ function drawIntro(t) {
     arms = Math.floor(t / BEAT) % 2 ? [[2,12],[1,11],[1,10],[12,13],[12,14]] : [[3,13],[3,14],[13,12],[14,11],[14,10]];
   } else if (IK === 'fly') { rows([6, 7], 'dddddddd'); rows([7], 'deeddeed'); arms = []; }   // 눈 감고 ^^ (팔 대신 날개)
   else if (IK === 'rocket') { rows([6], 'deeddeed'); rows([7], 'dddddddd'); arms = [[3,13],[3,14],[3,15],[12,13],[12,14],[12,15]]; }  // 비장한 눈, 팔 쭉
+  else if (IK === 'outfit') {
+    const L = LOOKS[Math.min(3, Math.floor(t / 0.4))];
+    for (const y of [13, 14]) for (let x = 5; x <= 10; x++) if (grid[y][x] === 'w') grid[y][x] = L.body;     // 셔츠 색
+    if (L.glasses) { rows([6, 7], 'dBBddBBd'); set(5, 6, 'w'); set(9, 6, 'w'); } else rows([6, 7], 'deeddeed');
+    if (L.bow) for (const x of [6, 7, 8, 9]) set(x, 12, 'c');                                                  // 나비넥타이
+    for (const x of [7, 8]) set(x, 9, 'm');
+    arms = Math.floor(t / 0.4) % 2 ? [[3,13],[3,14],[13,12],[14,11],[14,10]] : [[2,12],[1,11],[1,10],[12,13],[12,14]];
+  } else if (IK === 'adpop') {
+    const a = ADS.filter(d => t >= d.at).pop();
+    rows([6, 7], !a ? 'deeddeed' : a.side < 0 ? 'eeddeedd' : a.side > 0 ? 'ddeeddee' : 'deeddeed');
+    const sw = ADS.find(d => d.side && t >= d.at + 0.25 && t < d.at + 0.37);                                    // 퍽! 쳐내기
+    if (sw) arms = sw.side < 0 ? [[2,12],[1,11],[0,11],[12,13],[12,14]] : [[3,13],[3,14],[13,12],[14,11],[15,11]];
+  } else if (IK === 'siren') {
+    if (t < 0.85) { rows([6], 'dddddddd'); rows([7, 8], 'deeddeed'); arms = [[3,13],[3,14],[12,13],[11,14]]; }  // 일기 쓰는 중(아래 봄)
+    else { shock(); arms = []; }                                                                               // 일기장 등 뒤로 숨김
+  } else if (IK === 'textflood') {
+    if (t < 1.25) { rows([6, 7], 'deeddeed'); rows([9], 'ddmddmdd'); }
+    else { shock(); arms = [[2,12],[1,11],[13,12],[14,11]]; }                                                  // 푸하!
+  } else if (IK === 'cart') {
+    if (t < 0.75) { rows([6, 7], 'deeddeed'); for (const x of [6, 7, 8, 9]) set(x, 9, 'm'); arms = [[2,12],[1,11],[13,12],[14,11]]; }
+    else { rows([6], 'dddddddd'); rows([7], 'eeeddeee'); }
+  } else if (IK === 'slot') {
+    arms = t < 0.15 ? [[3,13],[3,14],[13,12],[14,11],[14,10]] : [[3,13],[3,14],[13,13],[14,13]];              // 레버 당기기
+  } else if (IK === 'magnifier') {
+    if (t > 1.05) shock(); else rows([6, 7], Math.sin(t * 3.2) > 0 ? 'ddeeddee' : 'eeddeedd');
+    arms = [[3,13],[3,14],[13,12],[14,11],[14,10]];
+  } else if (IK === 'receipt') {
+    if (t < 0.7) { rows([6], 'dddddddd'); rows([7, 8], 'deeddeed'); }
+    else if (t < 1.3) rows([5, 6, 7], 'deeddeed');                                                            // 점점 커지는 눈
+    else shock();
+  }
   else if (t < 0.25) rows([6, 7], Math.floor(t * 12) % 2 ? 'eeddeedd' : 'ddeeddee');        // bignews: 두리번
   else if (t < 0.45) { rows([6, 7], 'dddddddd'); rows([5, 6], 'deeddeed'); }                 // 찌릿 — 눈이 위로
   else { shock(); arms = [[2,12],[1,11],[13,12],[14,11]]; }                                  // 헉!
@@ -564,6 +756,8 @@ function drawIntro(t) {
   f.fillStyle = `rgba(4,8,14,${0.6 * (t < D0 ? 1 : Math.max(0, 1 - (t - D0) / 0.35))})`; f.fillRect(0, 0, 1080, 1920);
   drawLetters(t);
   drawAct(t, st);
+  tg.clearRect(0, 0, 1080, 1920);
+  drawTop(t, st);
   if (IK === 'bignews' && t > 0.25 && t < 0.9 && Math.floor(t * 20) % 2) {
     const ax = st.x + (7.5 - 8) * 9 * st.sx, ay = st.y + (0.5 - 8.5) * 9 * st.sy, Q = 14;
     f.fillStyle = '#ffd166';
@@ -596,6 +790,7 @@ window.render = (t) => {
   document.querySelector('.dots').style.visibility = opening ? 'hidden' : 'visible';   // 오프닝엔 키워드만
   if (INTRO && t < INTRO) { drawIntro(t); return; }
   document.getElementById('news').style.opacity = 0;
+  tg.clearRect(0, 0, 1080, 1920);
   drawBot(t - INTRO);
   drawFx(t - INTRO);
 };
@@ -658,7 +853,7 @@ def _page(sc: dict, i: int, n: int, speech: float, offset: float = 0.0, chirp: f
     return (f"<html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"
             f'<div class="top"><span class="kicker">{_fmt(keyword) if intro else ""}</span><span class="dots">{dots}</span></div>'
             f'<div class="stage">{_body(sc)}</div><canvas id="fx" width="1080" height="1920"></canvas><div class="cap">{_caption(sc["narration"])}</div>'
-            f'<div id="bang">!</div><div id="news">{html.escape(intro_text)}</div><canvas id="bot" width="16" height="17"></canvas>'
+            f'<div id="bang">!</div><div id="news">{html.escape(intro_text)}</div><canvas id="bot" width="16" height="17"></canvas><canvas id="topfx" width="1080" height="1920"></canvas>'
             f'<div class="tag">샘플 · 자료: 장면표 출처 참조</div><script>{js}</script></body></html>')
 
 

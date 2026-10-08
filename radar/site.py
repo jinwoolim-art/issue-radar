@@ -76,6 +76,9 @@ def build() -> Path:
 def _shorts_page():
     """out/shorts/*.mp4 → site/shorts/ + 목록 페이지 (최신순). 장면표(JSON)의 제목·출처를 함께 보여 준다."""
     vids = sorted((OUT / "shorts").glob("*.mp4"), reverse=True)
+    stems = {v.stem for v in vids}
+    vids = [v for v in vids if f"{v.stem}-v2" not in stems]      # v2(움직이는 버전)가 있으면 v1은 숨김
+    shutil.rmtree(SITE / "shorts", ignore_errors=True)                 # 숨긴 v1 파일이 사이트에 남지 않게
     (SITE / "shorts").mkdir(exist_ok=True)
     cards = []
     for k, v in enumerate(vids, 1):
