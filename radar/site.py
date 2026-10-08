@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "out"
 SITE = OUT / "site"
-PROJECT = "issue-radar"
+PROJECT = "p4m-issue-radar"
 STAMP = ROOT / "data" / "last_deploy.txt"
 MIN_GAP = 2 * 3600
 ACCESS_OK = ROOT / "data" / "access_confirmed"   # 탐님이 접근 제한 설정을 확인한 뒤에만 만든다
