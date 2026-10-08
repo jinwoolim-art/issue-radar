@@ -112,7 +112,8 @@ body{width:1080px;height:1920px;background:radial-gradient(1200px 900px at 80% 1
  font-family:"Apple SD Gothic Neo","Noto Sans KR",sans-serif;overflow:hidden;position:relative;word-break:keep-all}
 .top{position:absolute;top:120px;left:80px;right:160px;display:flex;align-items:center;gap:18px;z-index:5}
 .kicker:empty{display:none}
-.kicker{background:var(--accent);color:#08111b;font-weight:800;font-size:38px;padding:10px 26px;border-radius:999px}
+.top .kicker{position:absolute;left:0;top:-10px}
+.kicker{color:var(--hot);font-weight:900;font-size:84px;letter-spacing:-2px;line-height:1.1;white-space:nowrap}   /* 오프닝 대표 키워드: 본 제목과 같은 노랑, 버튼 없이 */
 .dots{margin-left:auto;display:flex;gap:10px}.dots i{width:16px;height:16px;border-radius:50%;background:#33404f}.dots i.on{background:var(--fg)}
 .stage{position:absolute;top:250px;left:80px;right:160px;height:770px;display:flex;flex-direction:column;justify-content:center;gap:30px}
 .cap{position:absolute;top:1180px;left:70px;right:150px;background:rgba(0,0,0,.55);border-radius:28px;padding:30px 36px;
@@ -183,6 +184,8 @@ const words = [...document.querySelectorAll('.cap span')];
 const total = words.reduce((a, w) => a + w.textContent.length, 0);
 let acc = 0; words.forEach(w => { w.dataset.at = OFFSET + (acc / total) * SPEECH; acc += w.textContent.length; });
 document.querySelectorAll('.cnt').forEach(el => el.dataset.to = el.textContent);
+{ const kk = document.querySelector('.kicker');            // 키워드는 한 줄로 — 길면 들어갈 만큼 글자를 줄임
+  if (kk && kk.textContent) { let fs = 84; while (kk.scrollWidth > 900 && fs > 44) { fs -= 2; kk.style.fontSize = fs + 'px'; } } }
 const ease = x => 1 - Math.pow(1 - Math.min(Math.max(x, 0), 1), 3);
 
 function countText(src, p) {        // "174,000원" → p(0~1)만큼 올라간 숫자, 형식(쉼표·소수점)은 유지
@@ -421,7 +424,9 @@ window.render = (t) => {
     el.querySelectorAll('.cnt').forEach(c => c.textContent = countText(c.dataset.to, ease((t - el.dataset.at) / 0.9)));
   });
   words.forEach(w => w.classList.toggle('on', t >= w.dataset.at));
-  const kk = document.querySelector('.kicker'); if (kk) kk.style.visibility = (INTRO && t < INTRO - 0.2) ? 'visible' : 'hidden';
+  const opening = INTRO && t < INTRO - 0.2;
+  const kk = document.querySelector('.kicker'); if (kk) kk.style.visibility = opening ? 'visible' : 'hidden';
+  document.querySelector('.dots').style.visibility = opening ? 'hidden' : 'visible';   // 오프닝엔 키워드만
   if (INTRO && t < INTRO) { drawIntro(t); return; }
   document.getElementById('news').style.opacity = 0;
   drawBot(t - INTRO);
