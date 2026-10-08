@@ -1,6 +1,6 @@
 """장면표(JSON) → 세로 숏폼 영상(러프). 무료: 장면 카드 이미지 + 맥 내장 한국어 음성 + ffmpeg.
 
-장면 종류(type): hook / compare / price / checklist / warning / outro
+장면 종류(type): hook / compare / price / checklist / warning / outro / steps / stat / quote
 나중에 그래픽을 올릴 때는 같은 장면표를 유료 영상 AI나 영상 공장에 넘기면 된다 (장면표가 '프롬프트 정의'의 뼈대).
 사용: python -m radar shorts briefs/shorts/파일.json → out/shorts/파일.mp4
 """
@@ -41,18 +41,29 @@ body{width:1080px;height:1920px;background:radial-gradient(1200px 900px at 80% 1
 .warn{border:6px solid var(--hot)}.warn li{font-size:54px;font-weight:800;margin:18px 0 18px 50px}
 .dt{display:flex;align-items:baseline;gap:30px;margin:14px 0}.dt b{font-size:130px;color:var(--hot);font-weight:900;letter-spacing:-3px;min-width:330px}
 .dt span{font-size:50px;font-weight:700}
+.big.mid{font-size:190px;letter-spacing:-4px}.big.sm{font-size:130px;letter-spacing:-2px}
+.step{display:flex;gap:28px;align-items:flex-start;margin:6px 0}.step b{flex:none;width:92px;height:92px;border-radius:50%;background:var(--accent);
+ color:#08111b;font-size:52px;font-weight:900;display:flex;align-items:center;justify-content:center}.step span{font-size:52px;font-weight:800;line-height:1.3;padding-top:12px}
+.stat{font-size:200px;font-weight:900;color:var(--hot);letter-spacing:-5px;line-height:1}.stat.mid{font-size:140px}
+.statl{font-size:56px;font-weight:800;line-height:1.3}.src{font-size:36px;color:var(--muted)}
+.quote{border-left:14px solid var(--accent);padding:10px 0 10px 40px;font-size:60px;font-weight:800;line-height:1.35}
+.qsrc{font-size:38px;color:var(--muted)}
+.cmp .row.sm{font-size:46px;font-weight:700}
 """
 
 
 def _scene_html(sc: dict, i: int, n: int, title: str) -> str:
     t = sc["type"]
     if t == "hook":
-        body = f'<div class="big">{e(sc["big"])}</div><div class="h">{e(sc["text"])}</div>'
+        size = "" if len(sc["big"]) <= 4 else ("mid" if len(sc["big"]) <= 7 else "sm")
+        body = f'<div class="big {size}">{e(sc["big"])}</div><div class="h">{e(sc["text"])}</div>'
     elif t == "compare":
+        small = any(len(r) > 9 for c in (sc["left"], sc["right"]) for r in c["rows"])  # 양쪽 글자 크기를 맞춘다
+
         def col(c, cls):
             return f'<div class="card {cls}"><div class="lab">{e(c["label"])}</div>' + "".join(
-                f'<div class="row">{e(r)}</div>' for r in c["rows"]) + "</div>"
-        body = f'<div class="cmp">{col(sc["left"], "")}{col(sc["right"], "after")}</div>'
+                f'<div class="row{" sm" if small else ""}">{e(r)}</div>' for r in c["rows"]) + "</div>"
+        body = f'<div class="cmp">{col(sc["left"], "")}{col(sc["right"], "after" if sc.get("mark_right", True) else "")}</div>'
     elif t == "price":
         body = (f'<div class="plan">{e(sc["plan"])}</div><div class="was">{e(sc["before"])}</div>'
                 f'<div class="now">{e(sc["after"])}</div><div><span class="badge">{e(sc["badge"])}</span></div>'
@@ -64,8 +75,17 @@ def _scene_html(sc: dict, i: int, n: int, title: str) -> str:
     elif t == "warning":
         body = '<div class="card warn"><ul>' + "".join(f"<li>{e(x)}</li>" for x in sc["items"]) + "</ul></div>"
     elif t == "outro":
-        body = "".join(f'<div class="dt"><b>{e(d)}</b><span>{e(s)}</span></div>' for d, s in sc["dates"]) + \
-               f'<div class="h" style="margin-top:20px">{e(sc["text"])} 🔖</div>'
+        body = "".join(f'<div class="dt"><b>{e(d)}</b><span>{e(s)}</span></div>' for d, s in sc.get("dates", [])) + \
+               "".join(f'<div class="statl">· {e(x)}</div>' for x in sc.get("lines", [])) + \
+               f'<div class="h" style="margin-top:20px">{e(sc["text"])}</div>'
+    elif t == "steps":
+        body = "".join(f'<div class="step"><b>{k + 1}</b><span>{e(x)}</span></div>' for k, x in enumerate(sc["items"]))
+    elif t == "stat":
+        body = "".join(f'<div><div class="stat{" mid" if len(st["value"]) > 6 else ""}">{e(st["value"])}</div>'
+                       f'<div class="statl">{e(st["label"])}</div></div>' for st in sc["stats"]) + \
+               (f'<div class="src">{e(sc["source"])}</div>' if sc.get("source") else "")
+    elif t == "quote":
+        body = f'<div class="quote">“{e(sc["quote"])}”</div><div class="qsrc">— {e(sc["by"])}</div>'
     else:
         raise ValueError(f"모르는 장면 종류: {t}")
     dots = "".join(f'<i class="{"on" if k == i else ""}"></i>' for k in range(n))

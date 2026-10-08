@@ -78,14 +78,14 @@ def _shorts_page():
     vids = sorted((OUT / "shorts").glob("*.mp4"), reverse=True)
     (SITE / "shorts").mkdir(exist_ok=True)
     cards = []
-    for v in vids:
+    for k, v in enumerate(vids, 1):
         shutil.copy2(v, SITE / "shorts" / v.name)
         spec = ROOT / "briefs" / "shorts" / f"{v.stem}.json"
         meta = json.loads(spec.read_text(encoding="utf-8")) if spec.exists() else {}
         title = meta.get("title", v.stem)
         src = "".join(f"<li>{s}</li>" for s in meta.get("sources", []))
         cards.append(f'''<article class="v"><video src="shorts/{v.name}" controls playsinline preload="metadata"></video>
-<div class="t"><b>{title}</b><div class="m">{meta.get("line", "")} · {v.stem[:10]} · 러프 샘플(무료: 장면 카드 + 맥 음성)</div>
+<div class="t"><b>{k}. {title}</b><div class="m">{meta.get("line", "")} · {v.stem[:10]} · 러프 샘플(무료: 장면 카드 + 맥 음성)</div>
 <ul class="m">{src}</ul></div></article>''')
     page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>샘플 영상</title><style>
@@ -94,8 +94,14 @@ def _shorts_page():
 body{{margin:0;background:var(--bg);color:var(--fg);font:14px/1.55 -apple-system,"Apple SD Gothic Neo",sans-serif}}
 .wrap{{max-width:900px;margin:0 auto;padding:16px}}h1{{font-size:20px}}.grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}}
 .v{{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}}video{{width:100%;aspect-ratio:9/16;background:#000;display:block}}
-.t{{padding:10px 12px}}.m{{color:var(--muted);font-size:12px;margin:4px 0 0;padding-left:16px;overflow-wrap:anywhere}}div.m{{padding-left:0}}
-</style></head><body><div class="wrap"><h1>샘플 영상</h1><div class="grid">{"".join(cards) or "<p>아직 영상이 없습니다.</p>"}</div></div></body></html>'''
+.t{{padding:10px 12px}}.guide{{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:0 0 16px}}
+.guide ol{{margin:6px 0 0;padding-left:20px}}.m{{color:var(--muted);font-size:12px;margin:4px 0 0;padding-left:16px;overflow-wrap:anywhere}}div.m{{padding-left:0}}
+</style></head><body><div class="wrap"><h1>샘플 영상</h1>
+<div class="guide"><b>팀 평가 기준</b> — 영상마다 번호와 함께 1~5점으로 적어 주세요.<ol>
+<li><b>첫 3초</b>: 넘기지 않고 계속 볼 것 같은가</li><li><b>저장할 만한가</b>: 나중에 다시 꺼내 볼 정보가 있는가</li>
+<li><b>이해</b>: 한 번 보고 무슨 말인지 아는가</li><li><b>그래픽·음성</b>: 이 수준으로 올려도 되는가, 무엇이 먼저 바뀌어야 하나</li></ol>
+<div class="m" style="padding:0;margin-top:6px">음성은 맥 기본 음성, 화면은 글자 카드뿐인 무료 러프본입니다. 내용과 구성 위주로 봐 주세요.</div></div>
+<div class="grid">{"".join(cards) or "<p>아직 영상이 없습니다.</p>"}</div></div></body></html>'''
     page = page.replace("</head>", HEAD + "</head>", 1).replace("<body>", "<body>" + _nav("shorts.html"), 1)
     (SITE / "shorts.html").write_text(page, encoding="utf-8")
 
