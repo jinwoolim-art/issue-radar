@@ -16,6 +16,7 @@ SITE = OUT / "site"
 PROJECT = "issue-radar"
 STAMP = ROOT / "data" / "last_deploy.txt"
 MIN_GAP = 2 * 3600
+ACCESS_OK = ROOT / "data" / "access_confirmed"   # 탐님이 접근 제한 설정을 확인한 뒤에만 만든다
 
 ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
 <rect width="512" height="512" rx="112" fill="#1f2a37"/>
@@ -72,7 +73,11 @@ def build() -> Path:
 
 
 def deploy(force=False) -> bool:
-    """2시간에 한 번까지만 올린다 (무료 배포 한도 보호). 로그인 안 돼 있으면 조용히 건너뜀."""
+    """2시간에 한 번까지만 올린다 (무료 배포 한도 보호). 로그인 안 돼 있으면 조용히 건너뜀.
+    ⚠️ 접근 제한(Cloudflare Access, 팀원 이메일만)을 켰다고 확인되기 전에는 절대 올리지 않는다."""
+    if not ACCESS_OK.exists():
+        print("  배포 보류: 접근 제한(팀원 이메일만) 설정 확인 전 — data/access_confirmed 파일이 생기면 배포 시작")
+        return False
     if not force and STAMP.exists() and time.time() - float(STAMP.read_text()) < MIN_GAP:
         return False
     build()
