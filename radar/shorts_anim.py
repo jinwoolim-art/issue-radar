@@ -290,9 +290,37 @@ BOT = [
     ".....kk..kk.....",
 ]
 
+# 캐릭터: AI 채널 로봇 + 생활 채널 친구 3인방. 같은 16x17 픽셀 틀이라 표정·팔·효과 코드를 함께 쓴다.
+#   blink = 깜빡이는 부분(안테나·프로펠러 끝·귀 끝·램프), chest = 가슴 불빛, arm_shift = 팔 위치 보정(몸이 넓은 깡통은 ±1)
+_fix = lambda rows: [(r + "." * 16)[:16] for r in rows]
+CHARS = {
+    "ai": {"grid": BOT, "pal": {}, "blink": [[6, 0], [7, 0], [8, 0], [6, 1], [7, 1], [8, 1]], "chest": [[7, 13], [8, 13]], "chest_off": "w", "arm_shift": [0, 0]},
+    "prop": {"grid": _fix(["..pppppppppppp..", ".......kk.......", ".......kk.......", ".....kkkkkk.....", "...kkMMMMMMkk...",
+                           "..kMMMMMMMMMMk..", "..kMddddddddMk..", "..kMdeeeeeedMk..", "..kMddddddddMk..", "..kMMMMMMMMMMk..",
+                           "...kkMMMMMMkk...", "....kkkkkkkk....", ".....kMMMMk.....", "....kMMccMMk....", "....kMMMMMMk....",
+                           ".....kkkkkk.....", ".....kk..kk....."]),
+             "pal": {"p": "#ffd166", "k": "#3d5a5a", "M": "#6fe0c0", "d": "#123030", "e": "#ffd166", "m": "#ffd166", "c": "#ff8fb1", "s": "#6fe0c0"},
+             "blink": [[2, 0], [3, 0], [12, 0], [13, 0]], "chest": [[7, 13], [8, 13]], "chest_off": "M", "arm_shift": [0, 0]},
+    "tv": {"grid": _fix(["...k........k...", "...kk......kk...", "....k......k....", "..kkkkkkkkkkkk..", "..kooooooooook..",
+                         "..kokkkkkkkkok..", "..kokddddddkok..", "..kokdeddedkok..", "..kokdmmmmdkok..", "..kokkkkkkkkok..",
+                         "..kooooooooook..", "..kkkkkkkkkkkk..", "......kkkk......", "....kowwwwok....", "....kooooook....",
+                         "....kkkkkkkk....", ".....kk..kk....."]),
+           "pal": {"k": "#6a3a3a", "o": "#ff8a7a", "d": "#2a1a22", "e": "#ffffff", "m": "#ffd166", "w": "#ffe3dc", "s": "#ff8a7a"},
+           "blink": [[3, 0], [12, 0]], "chest": [[6, 13], [9, 13]], "chest_off": "o", "arm_shift": [0, 0]},
+    "can": {"grid": _fix([".......yy.......", "......yyyy......", ".......kk.......", "....kkkkkkkk....", "...kaaaaaaaak...",
+                          "...kBBBaaBBBk...", "...kBeBkkBeBk...", "...kBBBaaBBBk...", "...kaaaaaaaak...", "...kaaammaaak...",
+                          "...kaaaaaaaak...", "...kaaaaaaaak...", "...kaagggaaak...", "...kaagggaaak...", "...kaaaaaaaak...",
+                          "...kkkkkkkkkk...", "....kk....kk...."]),
+            "pal": {"y": "#fff3b0", "k": "#6a5a2a", "a": "#ffc861", "B": "#2a2a2a", "e": "#ffffff", "m": "#8b5a2b", "g": "#7bd88f", "s": "#ffc861"},
+            "blink": [[7, 0], [8, 0], [6, 1], [7, 1], [8, 1], [9, 1]], "chest": [[6, 12], [7, 12], [8, 12]], "chest_off": "a", "arm_shift": [-1, 1]},
+}
+
 JS = r"""(() => {   // 같은 페이지에 장면을 다시 넣어도 변수가 겹치지 않게 감싼다
-const BOT = %BOT%, TYPE = %TYPE%, MOOD = %MOOD%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%, INTRO = %INTRO%, FXAT = %FXAT%, IK = %IKIND%, ACC = %ACC%;
+const CH = %CHAR%, BOT = CH.grid, TYPE = %TYPE%, MOOD = %MOOD%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%, INTRO = %INTRO%, FXAT = %FXAT%, IK = %IKIND%, ACC = %ACC%;
 const COL = {k:'#4a5a70', w:'#e8eef5', d:'#0f2233', e:'#5ae0ff', m:'#5ae0ff', s:'#9fb0c3', c:'#ff7a6b', a:'#ffd166', A:'#7a6a3a', x:'#7ec8ff', n:'#2b4a7a', p:'#ff8fb1', g:'#7bd88f', y:'#ffd166', B:'#05070a'};
+Object.assign(COL, CH.pal);   // 캐릭터 색
+const FACE = new Set(['d', 'e', 'm', '.']);   // 표정은 얼굴 화면과 빈칸에만 그린다 → 몸 모양이 다른 친구 로봇에도 같은 표정 코드가 통함
+const armX = x => x <= 7 ? x + CH.arm_shift[0] : x + CH.arm_shift[1];
 const cv = document.getElementById('bot'), g = cv.getContext('2d');
 const rv = [...document.querySelectorAll('.stage .rv')];
 const n = rv.length, gap = n ? Math.min(0.45, (SPEECH * 0.5) / n) : 0;
@@ -314,7 +342,8 @@ function countText(src, p) {        // "174,000원" → p(0~1)만큼 올라간 �
 
 function drawBot(t) {
   const grid = BOT.map(r => r.split(''));
-  const set = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16) grid[y][x] = ch; };
+  const set = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16 && FACE.has(BOT[y][x])) grid[y][x] = ch; };
+  const setRaw = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16) grid[y][x] = ch; };
   const eyes = (pat) => { for (const y of [6, 7]) pat.split('').forEach((ch, i) => set(4 + i, y, ch)); };
   let dx = 0, dy = (Math.floor(t * 2) % 2) ? 0 : -1, look = 0, arm = 'down', mouth = 'n', sweat = false;
   if (TYPE === 'hook' && t < 0.7 && !INTRO) { dy = -Math.round(Math.sin(Math.PI * t / 0.7) * 4); mouth = 'o'; }
@@ -345,13 +374,13 @@ function drawBot(t) {
                         set(5, 8 + Math.floor((t * 4) % 2), 'x'); set(10, 8 + Math.floor((t * 4 + 1) % 2), 'x'); }
   // 안테나·가슴 불빛 깜빡
   const chirping = t < CHIRP;                     // 로봇 소리 나는 동안: 안테나 빠르게 깜빡 + 입 벙긋
-  if (chirping ? Math.floor(t * 16) % 2 : Math.floor(t * 3) % 2) for (const [x, y] of [[6,0],[7,0],[8,0],[6,1],[7,1],[8,1]]) set(x, y, 'A');
+  if (chirping ? Math.floor(t * 16) % 2 : Math.floor(t * 3) % 2) for (const [x, y] of CH.blink) setRaw(x, y, 'A');
   if (chirping && Math.floor(t * 16) % 2) { set(7, 8, 'm'); set(8, 8, 'm'); }
-  if (Math.floor(t * 1.5) % 2) { set(7, 13, 'w'); set(8, 13, 'w'); }
+  if (Math.floor(t * 1.5) % 2) for (const [x, y] of CH.chest) setRaw(x, y, CH.chest_off);
   // 팔
   const arms = {down: [[3,13],[3,14],[12,13],[12,14]], point: [[3,13],[3,14],[12,12],[13,11],[14,10]],
                 wave1: [[3,13],[3,14],[13,12],[14,11],[14,10]], wave2: [[3,13],[3,14],[13,12],[13,11],[12,10]]};
-  for (const [x, y] of arms[arm]) set(x, y, 's');
+  for (const [x, y] of arms[arm]) set(armX(x), y, 's');
   if (sweat) set(14, 4 + Math.floor((t * 6) % 4), 'x');
   g.clearRect(0, 0, 16, 17);
   grid.forEach((row, y) => row.forEach((ch, x) => { if (ch !== '.') { g.fillStyle = COL[ch]; g.fillRect(x, y, 1, 1); } }));
@@ -769,7 +798,8 @@ function drawAcc(st) {
 
 function drawIntro(t) {
   const grid = BOT.map(r => r.split(''));
-  const set = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16) grid[y][x] = ch; };
+  const set = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16 && FACE.has(BOT[y][x])) grid[y][x] = ch; };
+  const setRaw = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16) grid[y][x] = ch; };
   const rows = (ys, pat) => { for (const y of ys) pat.split('').forEach((ch, i) => set(4 + i, y, ch)); };
   const shock = () => { rows([5, 6], 'deeddeed'); rows([7], 'dddddddd'); rows([8, 9], 'dddmmddd'); set(5, 5, 'w'); set(9, 5, 'w'); set(14, 4, 'x'); };
   let arms = [[3,13],[3,14],[12,13],[12,14]];
@@ -825,8 +855,8 @@ function drawIntro(t) {
   else if (t < 0.45) { rows([6, 7], 'dddddddd'); rows([5, 6], 'deeddeed'); }                 // 찌릿 — 눈이 위로
   else { shock(); arms = [[2,12],[1,11],[13,12],[14,11]]; }                                  // 헉!
   const lit = (IK === 'bignews' && t > 0.25 && t < 0.9) || (IK === 'dance' && t < M) ? Math.floor(t * 8) % 2 || IK === 'bignews' : Math.floor(t * 6) % 2;
-  if (!lit) for (const [x, y] of [[6,0],[7,0],[8,0],[6,1],[7,1],[8,1]]) set(x, y, 'A');
-  for (const [x, y] of arms) set(x, y, 's');
+  if (!lit) for (const [x, y] of CH.blink) setRaw(x, y, 'A');
+  for (const [x, y] of arms) set(armX(x), y, 's');
   g.clearRect(0, 0, 16, 17);
   grid.forEach((row, y) => row.forEach((ch, x) => { if (ch !== '.') { g.fillStyle = COL[ch]; g.fillRect(x, y, 1, 1); } }));
   const st = introState(t);
@@ -931,9 +961,9 @@ def _caption(text: str) -> str:
 
 
 def _page(sc: dict, i: int, n: int, speech: float, offset: float = 0.0, chirp: float = 0.0,
-          intro: float = 0.0, intro_text: str = "BIG NEWS!", fx_at: float = 0.0, keyword: str = "", ikind: str = "", acc: str = "") -> str:
+          intro: float = 0.0, intro_text: str = "BIG NEWS!", fx_at: float = 0.0, keyword: str = "", ikind: str = "", acc: str = "", char: str = "ai") -> str:
     dots = "".join(f'<i class="{"on" if k == i else ""}"></i>' for k in range(n))
-    js = (JS.replace("%BOT%", json.dumps(BOT)).replace("%TYPE%", json.dumps(sc["type"])).replace("%MOOD%", json.dumps(sc.get("mood", ""))).replace("%SPEECH%", f"{speech:.3f}")
+    js = (JS.replace("%CHAR%", json.dumps(CHARS.get(char, CHARS["ai"]))).replace("%TYPE%", json.dumps(sc["type"])).replace("%MOOD%", json.dumps(sc.get("mood", ""))).replace("%SPEECH%", f"{speech:.3f}")
           .replace("%OFFSET%", f"{offset:.3f}").replace("%CHIRP%", f"{chirp:.3f}").replace("%INTRO%", f"{intro:.3f}").replace("%FXAT%", f"{fx_at:.3f}").replace("%IKIND%", json.dumps(ikind)).replace("%ACC%", json.dumps(acc)))
     return (f"<html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"
             f'<div class="top"><span class="kicker">{_fmt(keyword) if intro else ""}</span><span class="dots">{dots}</span></div>'
@@ -992,7 +1022,7 @@ def render(spec_path: str) -> Path:
         for i, sc in enumerate(scenes):
             speech, dur, offset, chirp, intro, fx_at, ik = durs[i]
             pg.set_content(_page(sc, i, len(scenes), speech, offset, chirp, intro, spec.get("intro_text", "BIG NEWS!"), fx_at,
-                                 spec.get("keyword") or scenes[0]["kicker"], ik, spec.get("acc", "")))   # 오프닝 좌상단 대표 키워드 → 썸네일·저장 목록 구분
+                                 spec.get("keyword") or scenes[0]["kicker"], ik, spec.get("acc", ""), spec.get("char", "ai")))   # 오프닝 좌상단 대표 키워드 → 썸네일·저장 목록 구분
             seg = work / f"s{i}.mp4"
             enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-i", "-",
                                     "-i", str(work / f"s{i}.wav"), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
