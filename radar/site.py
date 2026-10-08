@@ -36,7 +36,7 @@ HEAD = """<link rel="manifest" href="manifest.webmanifest" crossorigin="use-cred
 
 
 def _nav(active):
-    items = [("index.html", "📊 트렌드 계기판"), ("log.html", "🗂 수집 로그")]
+    items = [("index.html", "📊 트렌드 계기판"), ("log.html", "🗂 수집 로그"), ("shorts.html", "🎬 샘플 영상")]
     return '<nav class="appnav">' + "".join(
         f'<a href="{h}" class="{"on" if h == active else ""}">{t}</a>' for h, t in items) + "</nav>"
 
@@ -60,6 +60,7 @@ def build() -> Path:
         html = src.read_text(encoding="utf-8")
         html = html.replace("</head>", HEAD + "</head>", 1).replace("<body>", "<body>" + _nav(dst), 1)
         (SITE / dst).write_text(html, encoding="utf-8")
+    _shorts_page()
     (SITE / "manifest.webmanifest").write_text(json.dumps({
         "name": "이슈 레이더 — 트렌드 계기판", "short_name": "이슈레이더", "start_url": "index.html",
         "display": "standalone", "background_color": "#f3f3f0", "theme_color": "#1f2a37", "lang": "ko",
@@ -70,6 +71,33 @@ def build() -> Path:
         _icons()
     (SITE / "_headers").write_text("/*\n  Cache-Control: no-cache\n  X-Robots-Tag: noindex\n", encoding="utf-8")
     return SITE
+
+
+def _shorts_page():
+    """out/shorts/*.mp4 → site/shorts/ + 목록 페이지 (최신순). 장면표(JSON)의 제목·출처를 함께 보여 준다."""
+    vids = sorted((OUT / "shorts").glob("*.mp4"), reverse=True)
+    (SITE / "shorts").mkdir(exist_ok=True)
+    cards = []
+    for v in vids:
+        shutil.copy2(v, SITE / "shorts" / v.name)
+        spec = ROOT / "briefs" / "shorts" / f"{v.stem}.json"
+        meta = json.loads(spec.read_text(encoding="utf-8")) if spec.exists() else {}
+        title = meta.get("title", v.stem)
+        src = "".join(f"<li>{s}</li>" for s in meta.get("sources", []))
+        cards.append(f'''<article class="v"><video src="shorts/{v.name}" controls playsinline preload="metadata"></video>
+<div class="t"><b>{title}</b><div class="m">{meta.get("line", "")} · {v.stem[:10]} · 러프 샘플(무료: 장면 카드 + 맥 음성)</div>
+<ul class="m">{src}</ul></div></article>''')
+    page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>샘플 영상</title><style>
+:root{{--bg:#f3f3f0;--card:#fff;--fg:#0b0b0b;--muted:#5d5c58;--line:#e4e3de}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#121211;--card:#1c1c1b;--fg:#f2f2f0;--muted:#b7b6ad;--line:#2f2f2d;color-scheme:dark}}}}
+body{{margin:0;background:var(--bg);color:var(--fg);font:14px/1.55 -apple-system,"Apple SD Gothic Neo",sans-serif}}
+.wrap{{max-width:900px;margin:0 auto;padding:16px}}h1{{font-size:20px}}.grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px}}
+.v{{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden}}video{{width:100%;aspect-ratio:9/16;background:#000;display:block}}
+.t{{padding:10px 12px}}.m{{color:var(--muted);font-size:12px;margin:4px 0 0;padding-left:16px;overflow-wrap:anywhere}}div.m{{padding-left:0}}
+</style></head><body><div class="wrap"><h1>샘플 영상</h1><div class="grid">{"".join(cards) or "<p>아직 영상이 없습니다.</p>"}</div></div></body></html>'''
+    page = page.replace("</head>", HEAD + "</head>", 1).replace("<body>", "<body>" + _nav("shorts.html"), 1)
+    (SITE / "shorts.html").write_text(page, encoding="utf-8")
 
 
 def deploy(force=False) -> bool:
