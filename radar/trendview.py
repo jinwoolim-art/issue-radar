@@ -158,7 +158,19 @@ def write() -> Path:
     new = ("".join(f'<span class="chip new">{e(t)} <b>{n}</b></span>' for t, n in today["new_terms"])
            or f'<span class="muted">비교할 과거 데이터를 쌓는 중 ({len(files)}/7일). 7일이 지나면 "지난 7일엔 없던 단어"가 여기 뜹니다.</span>')
 
-    page = PAGE.replace("__AT__", e(today["at"])).replace("__TILES__", "".join(
+    g = today.get("general") or {}
+    gen = []
+    gen.append('<div class="gcol"><b>유튜브 한국 인기 급상승</b><ol>' + "".join(
+        f'<li><a href="https://www.youtube.com/watch?v={e(v["id"])}" target="_blank" rel="noopener">{e(v["title"][:38])}</a>'
+        f' <span class="muted">{e(v["category"])} · {_num(v["views"])}회</span></li>' for v in g.get("youtube", [])) +
+        "</ol></div>" if g.get("youtube") else '<div class="gcol muted">유튜브 인기: 데이터 없음</div>')
+    gen.append('<div class="gcol"><b>틱톡 한국 인기 해시태그</b> <span class="muted">(7일, 비로그인 공개 범위 상위 3)</span><ol>' + "".join(
+        f'<li>{e(t["tag"])} <span class="muted">{e(t["category"])} · 게시물 {e(t["posts"])} · 조회 {e(t["views"])}</span></li>'
+        for t in g.get("tiktok", [])) + "</ol></div>" if g.get("tiktok") else '<div class="gcol muted">틱톡: 데이터 없음</div>')
+    gen.append('<div class="gcol"><b>구글 한국 실시간 급상승 검색어</b><ol>' + "".join(
+        f'<li>{e(t["term"])} <span class="muted">{e(t["traffic"])}</span></li>' for t in g.get("google", [])) +
+        "</ol></div>" if g.get("google") else '<div class="gcol muted">구글: 데이터 없음</div>')
+    page = PAGE.replace("__GENERAL__", "".join(gen)).replace("__AT__", e(today["at"])).replace("__TILES__", "".join(
         f'<div class="tile"><div class="muted">{e(k)}</div><div class="big">{e(v)}</div></div>' for k, v in tiles)
     ).replace("__QUAD__", _quadrant(rows, cut)).replace("__ROWS__", "".join(table)).replace(
         "__VIDS__", vtable).replace("__WORDS__", words).replace("__NEW__", new).replace("__CUT__", str(cut))
@@ -187,7 +199,7 @@ th{font-size:12px;color:var(--muted);font-weight:500}td.n{text-align:right;font-
 .bar{display:inline-block;width:80px;height:8px;background:var(--chip);border-radius:4px;vertical-align:middle;margin-right:6px}
 .bar span{display:block;height:8px;background:var(--series-1);border-radius:4px}.v{font-variant-numeric:tabular-nums}
 .chg{font-size:12px}.chip{display:inline-block;background:var(--chip);border-radius:6px;padding:3px 8px;margin:3px;font-size:12px}
-.chip.new{border:1px solid var(--fg)}a{color:inherit}
+.chip.new{border:1px solid var(--fg)}.gen{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;font-size:13px}.gen ol{margin:6px 0 0;padding-left:20px}.gen li{margin:3px 0}a{color:inherit}
 details{margin-top:8px}summary{cursor:pointer;color:var(--muted);font-size:12px}
 </style></head><body><div class="wrap">
 <h1>트렌드 계기판</h1><div class="muted">기준 __AT__ · 매일 아침 갱신 · "탐님 관심" vs "시청자 반응"</div>
@@ -218,5 +230,7 @@ document.querySelectorAll('.dot').forEach(g=>{g.addEventListener('mouseenter',ev
  g.addEventListener('click',ev=>{ev.stopPropagation();show(g,ev)});g.addEventListener('mouseleave',()=>tip.hidden=true)});
 document.addEventListener('click',()=>tip.hidden=true);
 </script>
-<p class="muted" style="margin-top:28px">출처: 유튜브 Data API(공식) · 구글 트렌드(한국) · 레이더 수집 37곳(RSS·공식 블로그·커뮤니티). 업계 언급은 "우리가 지켜보는 곳 안에서의 숫자"이며 전국 검색량이 아님.</p>
+<h2>⑥ 전체 트렌드 흐름 <span class="muted">(AI 무관 · 참고용)</span></h2>
+<div class="gen">__GENERAL__</div>
+<p class="muted" style="margin-top:28px">출처: 유튜브 Data API(공식) · 구글 트렌드(한국) · 틱톡 크리에이티브 센터(비로그인 공개 화면) · 레이더 수집 37곳(RSS·공식 블로그·커뮤니티). 업계 언급은 "우리가 지켜보는 곳 안에서의 숫자"이며 전국 검색량이 아님.</p>
 </div></body></html>"""

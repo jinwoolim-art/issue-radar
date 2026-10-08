@@ -17,7 +17,7 @@ from pathlib import Path
 
 import yaml
 
-from . import http
+from . import general, http
 from .models import Item
 from .research import _seconds
 from .sources.keyed import _env, _foreign
@@ -165,5 +165,6 @@ def collect() -> Path:
         "at": datetime.now().strftime("%Y-%m-%d %H:%M"), "titles_24h": len(titles),
         "keywords": rows, "term_counts": dict(term_counts.most_common(2000)),
         "new_terms": new_terms(term_counts), "rising_terms": term_counts.most_common(30),
+        "general": general.collect(),
     }, ensure_ascii=False), encoding="utf-8")
     return out
