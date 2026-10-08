@@ -38,14 +38,17 @@ VOICE = {"tts": "clova", "speaker": "ndain", "speed": "-2"}   # 숏폼은 조금
 TTS_CACHE = ROOT / "data" / "tts_cache"    # 같은 문장·화자는 다시 돈 내고 만들지 않는다
 
 
-def _clova(text: str, speaker: str, speed: str, out: Path) -> bool:
+def _clova(text: str, speaker: str, speed: str, out: Path, extra: dict | None = None) -> bool:
+    """extra: 음높이(pitch)·음색(alpha) 등 — 같은 화자로 다른 캐릭터 목소리를 만들 때"""
     kid, key = os.environ.get("CLOVA_API_KEY_ID"), os.environ.get("CLOVA_API_KEY")
     if not (kid and key):
         return False
     TTS_CACHE.mkdir(parents=True, exist_ok=True)
-    cached = TTS_CACHE / (hashlib.sha1(f"{speaker}|{speed}|{text}".encode()).hexdigest()[:16] + ".mp3")
+    extra = extra or {}
+    ckey = f"{speaker}|{speed}|{text}" + (f"|{sorted(extra.items())}" if extra else "")
+    cached = TTS_CACHE / (hashlib.sha1(ckey.encode()).hexdigest()[:16] + ".mp3")
     if not cached.exists():
-        body = urllib.parse.urlencode({"speaker": speaker, "text": text, "format": "mp3", "speed": speed}).encode()
+        body = urllib.parse.urlencode({"speaker": speaker, "text": text, "format": "mp3", "speed": speed, **extra}).encode()
         req = urllib.request.Request("https://naveropenapi.apigw.ntruss.com/tts-premium/v1/tts", data=body, headers={
             "X-NCP-APIGW-API-KEY-ID": kid, "X-NCP-APIGW-API-KEY": key, "Content-Type": "application/x-www-form-urlencoded"})
         cached.write_bytes(urllib.request.urlopen(req, timeout=30).read())
@@ -294,25 +297,28 @@ BOT = [
 #   blink = 깜빡이는 부분(안테나·프로펠러 끝·귀 끝·램프), chest = 가슴 불빛, arm_shift = 팔 위치 보정(몸이 넓은 깡통은 ±1)
 _fix = lambda rows: [(r + "." * 16)[:16] for r in rows]
 CHARS = {
-    "ai": {"grid": BOT, "pal": {}, "blink": [[6, 0], [7, 0], [8, 0], [6, 1], [7, 1], [8, 1]], "chest": [[7, 13], [8, 13]], "chest_off": "w", "arm_shift": [0, 0]},
+    "ai": {"grid": BOT, "pal": {}, "blink": [[6, 0], [7, 0], [8, 0], [6, 1], [7, 1], [8, 1]], "chest": [[7, 13], [8, 13]], "chest_off": "w", "arm_shift": [0, 0], "voice": {}},
     "prop": {"grid": _fix(["..pppppppppppp..", ".......kk.......", ".......kk.......", ".....kkkkkk.....", "...kkMMMMMMkk...",
                            "..kMMMMMMMMMMk..", "..kMddddddddMk..", "..kMdeeeeeedMk..", "..kMddddddddMk..", "..kMMMMMMMMMMk..",
                            "...kkMMMMMMkk...", "....kkkkkkkk....", ".....kMMMMk.....", "....kMMccMMk....", "....kMMMMMMk....",
                            ".....kkkkkk.....", ".....kk..kk....."]),
              "pal": {"p": "#ffd166", "k": "#3d5a5a", "M": "#6fe0c0", "d": "#123030", "e": "#ffd166", "m": "#ffd166", "c": "#ff8fb1", "s": "#6fe0c0"},
-             "blink": [[2, 0], [3, 0], [12, 0], [13, 0]], "chest": [[7, 13], [8, 13]], "chest_off": "M", "arm_shift": [0, 0]},
+             "blink": [[2, 0], [3, 0], [12, 0], [13, 0]], "chest": [[7, 13], [8, 13]], "chest_off": "M", "arm_shift": [0, 0],
+             "voice": {"speaker": "nmeow"}},
     "tv": {"grid": _fix(["...k........k...", "...kk......kk...", "....k......k....", "..kkkkkkkkkkkk..", "..kooooooooook..",
                          "..kokkkkkkkkok..", "..kokddddddkok..", "..kokdeddedkok..", "..kokdmmmmdkok..", "..kokkkkkkkkok..",
                          "..kooooooooook..", "..kkkkkkkkkkkk..", "......kkkk......", "....kowwwwok....", "....kooooook....",
                          "....kkkkkkkk....", ".....kk..kk....."]),
            "pal": {"k": "#6a3a3a", "o": "#ff8a7a", "d": "#2a1a22", "e": "#ffffff", "m": "#ffd166", "w": "#ffe3dc", "s": "#ff8a7a"},
-           "blink": [[3, 0], [12, 0]], "chest": [[6, 13], [9, 13]], "chest_off": "o", "arm_shift": [0, 0]},
+           "blink": [[3, 0], [12, 0]], "chest": [[6, 13], [9, 13]], "chest_off": "o", "arm_shift": [0, 0],
+           "voice": {"speaker": "ngaram", "alpha": "2"}},
     "can": {"grid": _fix([".......yy.......", "......yyyy......", ".......kk.......", "....kkkkkkkk....", "...kaaaaaaaak...",
                           "...kBBBaaBBBk...", "...kBeBkkBeBk...", "...kBBBaaBBBk...", "...kaaaaaaaak...", "...kaaammaaak...",
                           "...kaaaaaaaak...", "...kaaaaaaaak...", "...kaagggaaak...", "...kaagggaaak...", "...kaaaaaaaak...",
                           "...kkkkkkkkkk...", "....kk....kk...."]),
             "pal": {"y": "#fff3b0", "k": "#6a5a2a", "a": "#ffc861", "B": "#2a2a2a", "e": "#ffffff", "m": "#8b5a2b", "g": "#7bd88f", "s": "#ffc861"},
-            "blink": [[7, 0], [8, 0], [6, 1], [7, 1], [8, 1], [9, 1]], "chest": [[6, 12], [7, 12], [8, 12]], "chest_off": "a", "arm_shift": [-1, 1]},
+            "blink": [[7, 0], [8, 0], [6, 1], [7, 1], [8, 1], [9, 1]], "chest": [[6, 12], [7, 12], [8, 12]], "chest_off": "a", "arm_shift": [-1, 1],
+            "voice": {"speaker": "nwoof"}},
 }
 
 JS = r"""(() => {   // 같은 페이지에 장면을 다시 넣어도 변수가 겹치지 않게 감싼다
@@ -980,12 +986,14 @@ def render(spec_path: str) -> Path:
     scenes = spec["scenes"]
 
     # 1) 음성 먼저 — 장면 길이가 음성 길이로 정해진다. 장면 시작에 로봇 효과음, 목소리는 그 직후
-    voice = {**VOICE, **spec.get("voice2", {})}
+    # 목소리: 기본 → 진행 로봇 목소리 → 장면표에서 직접 지정(voice2) 순으로 덮어씀
+    voice = {**VOICE, **CHARS.get(spec.get("char", "ai"), CHARS["ai"]).get("voice", {}), **spec.get("voice2", {})}
+    extra = {k: str(voice[k]) for k in ("alpha", "pitch") if k in voice}
     durs = []
     for i, sc in enumerate(scenes):
         text = sc["narration"].replace("**", "")
         raw = work / f"s{i}.voice.mp3"
-        if not (voice["tts"] == "clova" and _clova(text, voice["speaker"], str(voice["speed"]), raw)):
+        if not (voice["tts"] == "clova" and _clova(text, voice["speaker"], str(voice["speed"]), raw, extra)):
             raw = work / f"s{i}.voice.aiff"
             _run(["say", "-v", spec.get("voice", "Yuna"), "-r", str(spec.get("rate", 200)), "-o", str(raw), text])
         speech = float(_run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(raw)]))
