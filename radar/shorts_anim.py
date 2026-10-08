@@ -30,7 +30,9 @@ PAD = 0.35   # 장면 끝 여백(초)
 # 채널 오프닝 종류와 길이(초). 행동 → 뚝 멈춤(0.22초) → 자리로 슝(0.35) → 콩(0.15) → 브리핑
 INTROS = {"bignews": 1.4, "dance": round(4 * 60 / 128 + 0.22 + 0.5, 3), "fly": 2.22, "rocket": 2.22,
           # 내용과 엮은 오프닝: 패션쇼·광고팝업·사이렌·글자폭탄·쇼핑카트·슬롯머신·돋보기·영수증
-          "outfit": 2.32, "adpop": 2.32, "siren": 2.32, "textflood": 2.32, "cart": 2.22, "slot": 2.32, "magnifier": 2.32, "receipt": 2.32}
+          "outfit": 2.32, "adpop": 2.32, "siren": 2.32, "textflood": 2.32, "cart": 2.22, "slot": 2.32, "magnifier": 2.32, "receipt": 2.32,
+          # 장르 테스트용: 놀이문화 불꽃놀이 · 생활꿀팁 전구 · 전자제품 언박싱
+          "fireworks": 2.32, "lightbulb": 2.32, "unbox": 2.32}
 SR = 44100
 VOICE = {"tts": "clova", "speaker": "ndain", "speed": "-2"}   # 숏폼은 조금 빠르게   # 장면표에서 "voice2": {...} 로 바꿀 수 있음
 TTS_CACHE = ROOT / "data" / "tts_cache"    # 같은 문장·화자는 다시 돈 내고 만들지 않는다
@@ -149,6 +151,19 @@ def _intro_sfx(kind: str, total: float, out: Path) -> float:
         tt = np.arange(int(SR * 1.2)) / SR
         put(noise(1.2, smooth=2, decay=10) * (0.5 + 0.5 * np.sign(np.sin(2 * np.pi * 22 * tt))), 0.1, 0.45)
         put(tone(2093, 2093, 0.3, square=0.1), 1.3, 0.7)
+    elif kind == "fireworks":   # 피융~ → 펑! ×3
+        for at in (0.1, 0.55, 1.0):
+            put(tone(600, 2000, 0.35, square=0.1), at, 0.5)
+            put(noise(0.5, smooth=3, decay=0.3), at + 0.35, 1.0)
+            for k in range(6): put(noise(0.02), at + 0.45 + k * 0.05 + (k % 2) * 0.02, 0.4)   # 타닥타닥
+    elif kind == "lightbulb":   # 흠 띠·띠·띠 → 띵!
+        for at in (0.2, 0.4, 0.6): put(tone(500, 500, 0.06, square=0.3), at, 0.5)
+        put(tone(2093, 2093, 0.4, square=0.05), 0.8, 0.6); put(tone(2637, 2637, 0.4, square=0.05), 0.8, 0.5)
+        put(tone(3136, 3300, 0.2, square=0.05), 0.95, 0.3)
+    elif kind == "unbox":       # 달그락달그락 → 찌익(테이프) → 뿅! ✨
+        for k in range(6): put(noise(0.05, smooth=8), 0.1 + k * 0.1, 0.7)
+        put(noise(0.18), 0.72, 0.6)
+        put(tone(400, 1600, 0.12, square=0.3), 0.9, 0.7); put(tone(2637, 2800, 0.25, square=0.05), 1.0, 0.4)
     if kind != "bignews":
         put(tone(1200, 1900, 0.12), m + 0.04, 0.8)          # 앗! "삐?"
     put(tone(2600, 700, 0.3, warble=0.02), d0)              # 슝~
@@ -276,7 +291,7 @@ BOT = [
 ]
 
 JS = r"""(() => {   // 같은 페이지에 장면을 다시 넣어도 변수가 겹치지 않게 감싼다
-const BOT = %BOT%, TYPE = %TYPE%, MOOD = %MOOD%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%, INTRO = %INTRO%, FXAT = %FXAT%, IK = %IKIND%;
+const BOT = %BOT%, TYPE = %TYPE%, MOOD = %MOOD%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%, INTRO = %INTRO%, FXAT = %FXAT%, IK = %IKIND%, ACC = %ACC%;
 const COL = {k:'#4a5a70', w:'#e8eef5', d:'#0f2233', e:'#5ae0ff', m:'#5ae0ff', s:'#9fb0c3', c:'#ff7a6b', a:'#ffd166', A:'#7a6a3a', x:'#7ec8ff', n:'#2b4a7a', p:'#ff8fb1', g:'#7bd88f', y:'#ffd166', B:'#05070a'};
 const cv = document.getElementById('bot'), g = cv.getContext('2d');
 const rv = [...document.querySelectorAll('.stage .rv')];
@@ -441,7 +456,9 @@ function actPose(t) {                                     // 행동 중 로봇 �
   if (IK === 'siren' && t > 0.85) return {x: MID[0] + (Math.floor(t * 30) % 2 ? 6 : -6), y: MID[1], sx: BIG, sy: BIG, rot: 0};
   if (IK === 'slot' && t > 1.3) return {x: MID[0], y: MID[1], sx: BIG, sy: BIG, rot: 9 * clamp01((t - 1.3) / 0.1)};   // 갸우뚱
   if (IK === 'magnifier' && t > 1.05 && t < 1.2) return {x: MID[0] + (Math.floor(t * 40) % 2 ? 8 : -8), y: MID[1], sx: BIG, sy: BIG, rot: 0};  // 쾅!
-  if (['adpop', 'siren', 'slot', 'magnifier', 'receipt'].includes(IK)) return {x: MID[0], y: MID[1] + 6 * Math.sin(t * 4), sx: BIG, sy: BIG, rot: 0};
+  if (IK === 'lightbulb' && t > 0.8 && t < 1.15) return {x: MID[0], y: MID[1] - 60 * Math.sin(Math.PI * (t - 0.8) / 0.35), sx: BIG, sy: BIG, rot: 0};  // 띵! 깡총
+  if (IK === 'unbox' && t < 0.7) return {x: MID[0] + (Math.floor(t * 20) % 2 ? 6 : -6), y: MID[1], sx: BIG, sy: BIG, rot: 0};   // 상자 흔들기
+  if (['adpop', 'siren', 'slot', 'magnifier', 'receipt', 'fireworks', 'lightbulb', 'unbox'].includes(IK)) return {x: MID[0], y: MID[1] + 6 * Math.sin(t * 4), sx: BIG, sy: BIG, rot: 0};
   const pop = t > 0.45 ? 1 + 0.14 * Math.exp(-(t - 0.45) * 9) * Math.cos((t - 0.45) * 30) : 1;   // bignews: 헉! 움찔
   const shake = (t > 0.45 && t < 0.7) ? (Math.floor(t * 40) % 2 ? 7 : -7) : 0;
   return {x: MID[0] + shake, y: MID[1], sx: BIG * pop, sy: BIG * pop, rot: 0};
@@ -698,6 +715,58 @@ function drawTop(t, st) {
   });
 }
 
+const FW = [0.1, 0.55, 1.0].map((at, i) => ({at, x: [300, 780, 540][i], y: [430, 380, 300][i], col: ['#ffd166', '#5ae0ff', '#ff7a6b'][i],
+  parts: Array.from({length: 26}, (_, k) => ({a: k / 26 * 6.283 + IR() * 0.2, v: 380 + IR() * 260}))}));
+const BULB = ["..yyy..", ".yyyyy.", "yyywyyy", "yyyyyyy", ".yyyyy.", "..yyy..", "..sss..", "..sss.."], BULBOFF = BULB.map(r => r.replace(/[yw]/g, 'o'));
+const BOX = ["bbbbbbbbbbbb", "bbbbbtbbbbbb", "bbbbbtbbbbbb", "bbbbbtbbbbbb", "bbbbbbbbbbbb"], LID = ["BBBBBBBBBBBB"];
+const GADGET = ["kkkkkk", "kcccck", "kcwcck", "kcccck", "kkkkkk", "..kk.."];
+const PAL2 = {y: '#ffd166', w: '#ffffff', s: '#9fb0c3', o: '#4a5a70', b: '#b07a45', B: '#8b5a2b', t: '#e8d3a8', k: '#4a5a70', c: '#5ae0ff'};
+function drawGenreIntro(t, st) {
+  const q = 9 * st.sx;
+  if (IK === 'fireworks' && t < D0) for (const fw of FW) {              // 피융~ 펑! 픽셀 불꽃
+    const u = t - fw.at; if (u < 0) continue;
+    const [hx, hy] = SP(st, 1, 10);
+    if (u < 0.35) { const p = u / 0.35, x = hx + (fw.x - hx) * p, y = hy + (fw.y - hy) * (1 - (1 - p) ** 2);
+      tg.fillStyle = '#ffd166'; tg.fillRect(Math.round(x - 7), Math.round(y - 7), 14, 14);
+      tg.fillStyle = 'rgba(255,209,102,0.4)'; tg.fillRect(Math.round(x - 4), Math.round(y + 10), 8, 30); continue; }
+    const v = u - 0.35, a = Math.max(0, 1 - v / 0.9);
+    tg.globalAlpha = a; tg.fillStyle = fw.col;
+    for (const pt of fw.parts) tg.fillRect(Math.round(fw.x + Math.cos(pt.a) * pt.v * v * Math.exp(-v * 1.5)), Math.round(fw.y + Math.sin(pt.a) * pt.v * v * Math.exp(-v * 1.5) + 220 * v * v), 14, 14);
+    tg.globalAlpha = 1;
+  }
+  if (IK === 'lightbulb' && t < D0) {                                       // 흠... → 띵! 전구
+    const [bx, by] = EDGE(st, 5.5, -9), lit = t >= 0.8;
+    if (!lit) { tg.fillStyle = '#9aa7b4'; for (let k = 0; k < 3; k++) if (t > 0.2 + k * 0.2) tg.fillRect(Math.round(bx + k * 2.4 * q), Math.round(by + 6 * q), Math.round(q), Math.round(q)); }
+    else { spr(tg, BULB, PAL2, bx, by, q);
+      if (Math.floor(t * 12) % 2 || t < 1.0) { tg.fillStyle = '#ffd166';                                 // 빛줄기
+        for (let k = 0; k < 8; k++) { const an = k / 8 * 6.283, r0 = 6 * q, cx = bx + 3.5 * q, cy = by + 3 * q;
+          tg.fillRect(Math.round(cx + Math.cos(an) * r0), Math.round(cy + Math.sin(an) * r0), Math.round(q), Math.round(q)); } } }
+  }
+  if (IK === 'unbox' && t < D0) {                                           // 달그락 → 뚜껑 열리고 뿅!
+    const [bx, by] = EDGE(st, 2, 12);
+    spr(tg, BOX, PAL2, bx, by, q);
+    if (t < 0.85) spr(tg, LID, PAL2, bx, by - q, q);
+    else { const v = t - 0.85;                                                // 뚜껑은 위로 휙 날아가고
+      tg.save(); tg.globalAlpha = Math.max(0, 1 - v / 0.3); tg.translate(bx + 6 * q, by - q - 900 * v); tg.rotate(-6 * v); spr(tg, LID, PAL2, -6 * q, 0, q); tg.restore();
+      const u = t - 0.9; if (u > 0) { const yy = by - (u < 0.25 ? u / 0.25 * 17 : 17) * q;   // 제품은 머리 위로 뿅
+        tg.fillStyle = 'rgba(255,240,180,0.28)'; tg.beginPath(); tg.moveTo(bx + 2 * q, by); tg.lineTo(bx + 10 * q, by); tg.lineTo(bx + 13 * q, by - 19 * q); tg.lineTo(bx - q, by - 19 * q); tg.fill();
+        spr(tg, GADGET, PAL2, bx + 3 * q, yy, q);
+        if (Math.floor(t * 10) % 2) { tg.fillStyle = '#ffd166'; for (const [dx, dy] of [[-1.5, -1], [7, 0], [-1, 5], [7.5, 6]]) tg.fillRect(Math.round(bx + (3 + dx) * q), Math.round(yy + dy * q), Math.round(q * 0.7), Math.round(q * 0.7)); } } }
+  }
+}
+// 장르 소품: 같은 로봇에 소품만 바꿔 '같은 회사의 다른 채널'로 보이게
+const ACCS = {
+  party:   {at: [9, -3], rows: ["..w..", "..p..", ".pyp.", ".ypy.", "pypyp"], pal: {w: '#ffffff', p: '#ff8fb1', y: '#ffd166'}},
+  headset: {at: [1, 2], rows: [".kkkkkkkkkkkk.", "k............k", "k............k", "BB..........BB", "BB..........BB", "BB..........BB", "BBk.........BB", "..k.........", "..kkk......."],
+            pal: {k: '#4a5a70', B: '#1b2430'}},
+  beret:   {at: [2, 0], rows: ["......k.....", "..rrrrrrrr..", ".rrrrrrrrrrr", "rrrrrrrrrrrr"], pal: {r: '#c94c4c', k: '#1b2430'}},
+  apron:   {at: [5, 12], rows: ["a....a", "gggggg", "gggggg", "gGGGgg"], pal: {a: '#7bd88f', g: '#7bd88f', G: '#4fae66'}},
+};
+function drawAcc(st) {
+  const A = ACCS[ACC]; if (!A) return;
+  withRot(st, () => { const [ax, ay] = EDGE(st, A.at[0], A.at[1]); spr(tg, A.rows, A.pal, ax, ay, 9 * st.sx); });
+}
+
 function drawIntro(t) {
   const grid = BOT.map(r => r.split(''));
   const set = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16) grid[y][x] = ch; };
@@ -742,6 +811,16 @@ function drawIntro(t) {
     else if (t < 1.3) rows([5, 6, 7], 'deeddeed');                                                            // 점점 커지는 눈
     else shock();
   }
+  else if (IK === 'fireworks') {
+    rows([6], 'deeddeed'); rows([7], 'dddddddd'); for (const x of [6, 7, 8, 9]) set(x, 9, 'm');             // 위를 보며 신남
+    const c = ['#ffd166', '#5ae0ff', '#ff7a6b'][Math.floor(t / 0.45) % 3];
+    if (Math.floor(t * 10) % 2) { set(5, 6, 'w'); set(9, 6, 'w'); }                                        // 눈에 불꽃 반짝
+    arms = [[2,12],[1,11],[1,10],[12,13],[12,14]];
+  } else if (IK === 'lightbulb') {
+    if (t < 0.8) rows([5, 6], 'eeddeedd'); else { rows([6, 7], 'deeddeed'); for (const x of [6, 7, 8, 9]) set(x, 9, 'm'); arms = [[2,12],[1,11],[13,12],[14,11]]; }
+  } else if (IK === 'unbox') {
+    if (t < 0.9) { rows([6], 'dddddddd'); rows([7, 8], 'deeddeed'); } else { rows([5, 6], 'deeddeed'); set(5, 5, 'w'); set(9, 5, 'w'); for (const x of [7, 8]) { set(x, 8, 'm'); set(x, 9, 'm'); } }
+  }
   else if (t < 0.25) rows([6, 7], Math.floor(t * 12) % 2 ? 'eeddeedd' : 'ddeeddee');        // bignews: 두리번
   else if (t < 0.45) { rows([6, 7], 'dddddddd'); rows([5, 6], 'deeddeed'); }                 // 찌릿 — 눈이 위로
   else { shock(); arms = [[2,12],[1,11],[13,12],[14,11]]; }                                  // 헉!
@@ -757,7 +836,9 @@ function drawIntro(t) {
   drawLetters(t);
   drawAct(t, st);
   tg.clearRect(0, 0, 1080, 1920);
+  if (IK !== 'outfit' || t >= D0) drawAcc(st);
   drawTop(t, st);
+  drawGenreIntro(t, st);
   if (IK === 'bignews' && t > 0.25 && t < 0.9 && Math.floor(t * 20) % 2) {
     const ax = st.x + (7.5 - 8) * 9 * st.sx, ay = st.y + (0.5 - 8.5) * 9 * st.sy, Q = 14;
     f.fillStyle = '#ffd166';
@@ -792,6 +873,7 @@ window.render = (t) => {
   document.getElementById('news').style.opacity = 0;
   tg.clearRect(0, 0, 1080, 1920);
   drawBot(t - INTRO);
+  drawAcc({x: HOME[0] + botDx * 9, y: HOME[1] + botDy * 9, sx: 1, sy: 1, rot: 0});
   drawFx(t - INTRO);
 };
 })();
@@ -823,6 +905,9 @@ def _body(sc: dict) -> str:
         return ("".join(f'<div class="dt rv"><b>{f(d)}</b><span>{f(s)}</span></div>' for d, s in sc.get("dates", []))
                 + "".join(f'<div class="statl rv">· {f(x)}</div>' for x in sc.get("lines", []))
                 + f'<div class="h rv" style="margin-top:20px">{f(sc["text"])}</div>')
+    if t == "dates":         # 날짜 목록 (축제·일정)
+        return ("".join(f'<div class="dt rv"><b>{f(d)}</b><span>{f(x)}</span></div>' for d, x in sc["dates"])
+                + (f'<div class="src rv">{f(sc["note"])}</div>' if sc.get("note") else ""))
     if t == "steps":
         return "".join(f'<div class="step rv"><b>{k + 1}</b><span>{f(x)}</span></div>' for k, x in enumerate(sc["items"]))
     if t == "stat":
@@ -846,10 +931,10 @@ def _caption(text: str) -> str:
 
 
 def _page(sc: dict, i: int, n: int, speech: float, offset: float = 0.0, chirp: float = 0.0,
-          intro: float = 0.0, intro_text: str = "BIG NEWS!", fx_at: float = 0.0, keyword: str = "", ikind: str = "") -> str:
+          intro: float = 0.0, intro_text: str = "BIG NEWS!", fx_at: float = 0.0, keyword: str = "", ikind: str = "", acc: str = "") -> str:
     dots = "".join(f'<i class="{"on" if k == i else ""}"></i>' for k in range(n))
     js = (JS.replace("%BOT%", json.dumps(BOT)).replace("%TYPE%", json.dumps(sc["type"])).replace("%MOOD%", json.dumps(sc.get("mood", ""))).replace("%SPEECH%", f"{speech:.3f}")
-          .replace("%OFFSET%", f"{offset:.3f}").replace("%CHIRP%", f"{chirp:.3f}").replace("%INTRO%", f"{intro:.3f}").replace("%FXAT%", f"{fx_at:.3f}").replace("%IKIND%", json.dumps(ikind)))
+          .replace("%OFFSET%", f"{offset:.3f}").replace("%CHIRP%", f"{chirp:.3f}").replace("%INTRO%", f"{intro:.3f}").replace("%FXAT%", f"{fx_at:.3f}").replace("%IKIND%", json.dumps(ikind)).replace("%ACC%", json.dumps(acc)))
     return (f"<html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"
             f'<div class="top"><span class="kicker">{_fmt(keyword) if intro else ""}</span><span class="dots">{dots}</span></div>'
             f'<div class="stage">{_body(sc)}</div><canvas id="fx" width="1080" height="1920"></canvas><div class="cap">{_caption(sc["narration"])}</div>'
@@ -907,7 +992,7 @@ def render(spec_path: str) -> Path:
         for i, sc in enumerate(scenes):
             speech, dur, offset, chirp, intro, fx_at, ik = durs[i]
             pg.set_content(_page(sc, i, len(scenes), speech, offset, chirp, intro, spec.get("intro_text", "BIG NEWS!"), fx_at,
-                                 spec.get("keyword") or scenes[0]["kicker"], ik))   # 오프닝 좌상단 대표 키워드 → 썸네일·저장 목록 구분
+                                 spec.get("keyword") or scenes[0]["kicker"], ik, spec.get("acc", "")))   # 오프닝 좌상단 대표 키워드 → 썸네일·저장 목록 구분
             seg = work / f"s{i}.mp4"
             enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-i", "-",
                                     "-i", str(work / f"s{i}.wav"), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
