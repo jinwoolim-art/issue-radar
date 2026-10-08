@@ -52,6 +52,10 @@ def _label_w(text):
     return sum(11 if ord(c) > 0x2000 else 6.5 for c in text)   # 한글은 넓게
 
 
+def _vclass(star, demand, cut):
+    return "go" if star >= 2 and demand >= cut else "opp" if demand >= cut else "mine" if star >= 2 else "wait"
+
+
 def _quadrant(rows, cut):
     W, H, P = 760, 420, 48
     colw = (W - 2 * P) / 3
@@ -105,7 +109,8 @@ def _quadrant(rows, cut):
                      f'<circle cx="{px:.1f}" cy="{py:.1f}" r="5" fill="var(--series-1)" stroke="var(--surface)" stroke-width="2"/>'
                      f'<text x="{lx:.1f}" y="{ly + 4:.1f}" class="dl" text-anchor="{anchor}">{e(r["name"])}</text></g>')
     parts.append("</svg>")
-    return '<div class="quadwrap">' + "".join(parts) + '<div id="tip" class="tip" hidden></div></div>'
+    return ('<div class="quadwrap"><div class="quadsvg">' + "".join(parts) + '</div>'
+            '<aside id="detail" class="detail"><div class="muted">점이나 이름에 마우스를 올리거나 누르면<br>여기에 숫자가 나옵니다.</div></aside></div>')
 
 
 def write() -> Path:
@@ -137,7 +142,7 @@ def write() -> Path:
         top = r["yt"]["top"][0] if r["yt"]["top"] else None
         table.append(f'''<tr><td><b>{e(r["name"])}</b><div class="muted">{"★" * r["star"]}</div></td>
 <td><div class="bar"><span style="width:{r["demand"]}%"></span></div><span class="v">{r["demand"]}</span></td>
-<td>{_verdict(r["star"], r["demand"], cut)}</td>
+<td><span class="verdict v{_vclass(r["star"], r["demand"], cut)}">{_verdict(r["star"], r["demand"], cut)}</span></td>
 <td class="n">{r["yt"]["videos_7d"]}</td><td class="n">{_num(r["yt"]["views_per_video"])}</td>
 <td class="n">{_num(r["yt"]["comments_sum"])}</td>
 <td>{_spark([v for _, v in g.get("series", [])])}<div class="muted">관심도 {g.get("level", "-")} {_change(g.get("change"))}</div></td>
@@ -160,16 +165,23 @@ def write() -> Path:
 
     g = today.get("general") or {}
     gen = []
-    gen.append('<div class="gcol"><b>유튜브 한국 인기 급상승</b><ol>' + "".join(
+    gen.append('<div class="gcol"><div class="ghead">유튜브 한국 인기 급상승 <span class="muted">전 분야</span></div><ol>' + "".join(
         f'<li><a href="https://www.youtube.com/watch?v={e(v["id"])}" target="_blank" rel="noopener">{e(v["title"][:38])}</a>'
-        f' <span class="muted">{e(v["category"])} · {_num(v["views"])}회</span></li>' for v in g.get("youtube", [])) +
+        f'<div class="muted">{e(v["category"])} · {_num(v["views"])}회</div></li>' for v in g.get("youtube", [])) +
         "</ol></div>" if g.get("youtube") else '<div class="gcol muted">유튜브 인기: 데이터 없음</div>')
-    gen.append('<div class="gcol"><b>틱톡 한국 인기 해시태그</b> <span class="muted">(7일, 비로그인 공개 범위 상위 3)</span><ol>' + "".join(
-        f'<li>{e(t["tag"])} <span class="muted">{e(t["category"])} · 게시물 {e(t["posts"])} · 조회 {e(t["views"])}</span></li>'
-        for t in g.get("tiktok", [])) + "</ol></div>" if g.get("tiktok") else '<div class="gcol muted">틱톡: 데이터 없음</div>')
-    gen.append('<div class="gcol"><b>구글 한국 실시간 급상승 검색어</b><ol>' + "".join(
-        f'<li>{e(t["term"])} <span class="muted">{e(t["traffic"])}</span></li>' for t in g.get("google", [])) +
-        "</ol></div>" if g.get("google") else '<div class="gcol muted">구글: 데이터 없음</div>')
+    tt = g.get("tiktok", [])
+    gen.append('<div class="gcol"><div class="ghead">틱톡 한국 인기 해시태그 <span class="muted">7일 · 비로그인 공개 범위 상위 3</span></div><ol>' + "".join(
+        f'<li><a href="https://www.tiktok.com/tag/{e(t["tag"].lstrip("#"))}" target="_blank" rel="noopener">{e(t["tag"])}</a>'
+        f'<div class="muted">{e(t["category"])} · 게시물 {e(t["posts"])} · 조회 {e(t["views"])}</div></li>' for t in tt) +
+        '</ol><a class="more" href="https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?region=KR&period=7" target="_blank" rel="noopener">크리에이티브 센터에서 전체 보기 (로그인) →</a></div>'
+        if tt else '<div class="gcol muted">틱톡: 데이터 없음</div>')
+    gg = g.get("google", [])
+    gen.append('<div class="gcol"><div class="ghead">구글 한국 실시간 급상승 <span class="muted">검색량 · 대표 기사</span></div><ol>' + "".join(
+        f'<li><b>{e(t["term"])}</b> <span class="pill">{e(t["traffic"])}</span>'
+        + (f'<span class="muted"> (+{e(", ".join(t["also"]))})</span>' if t.get("also") else "")
+        + "".join(f'<div class="news"><a href="{e(a["url"])}" target="_blank" rel="noopener">{e(a["title"][:46])}</a>'
+                  f' <span class="muted">{e(a["source"])}</span></div>' for a in t.get("news", [])[:1])
+        + "</li>" for t in gg) + "</ol></div>" if gg else '<div class="gcol muted">구글: 데이터 없음</div>')
     page = PAGE.replace("__GENERAL__", "".join(gen)).replace("__AT__", e(today["at"])).replace("__TILES__", "".join(
         f'<div class="tile"><div class="muted">{e(k)}</div><div class="big">{e(v)}</div></div>' for k, v in tiles)
     ).replace("__QUAD__", _quadrant(rows, cut)).replace("__ROWS__", "".join(table)).replace(
@@ -183,54 +195,76 @@ def write() -> Path:
 PAGE = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>트렌드 계기판</title>
 <style>
-:root{color-scheme:light;--surface:#fcfcfb;--fg:#0b0b0b;--muted:#52514e;--line:#e6e5e1;--chip:#f1f0ec;--series-1:#2a78d6}
-@media (prefers-color-scheme:dark){:root{color-scheme:dark;--surface:#1a1a19;--fg:#fff;--muted:#c3c2b7;--line:#2f2f2d;--chip:#262624;--series-1:#3987e5}}
-body{margin:0;background:var(--surface);color:var(--fg);font:14px/1.5 -apple-system,"Apple SD Gothic Neo",sans-serif}
-.wrap{max-width:1200px;margin:0 auto;padding:16px}h1{font-size:21px;margin:0}h2{font-size:16px;margin:28px 0 6px}
-.muted{color:var(--muted);font-size:12px}.small{font-size:12px}
-.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}
-.tile{border:1px solid var(--line);border-radius:8px;padding:10px}.big{font-size:20px;font-weight:600}
-.quad{width:100%;height:auto}.grid{stroke:var(--line);stroke-width:1}
-.ql{fill:var(--muted);font-size:12px}.axis{fill:var(--muted);font-size:11px}.dl{fill:var(--fg);font-size:11px}
-.dot{cursor:pointer;outline:none}.dot:hover .dl,.dot:focus .dl{font-weight:700}.lead{stroke:var(--muted);stroke-width:1}.quadwrap{position:relative;max-width:900px}.tip{position:absolute;pointer-events:none;background:var(--fg);color:var(--surface);border-radius:6px;padding:6px 9px;font-size:12px;line-height:1.5;white-space:nowrap;z-index:2}
+:root{color-scheme:light;--bg:#f3f3f0;--card:#ffffff;--fg:#0b0b0b;--muted:#5d5c58;--line:#e4e3de;--chip:#f1f0ec;
+ --series-1:#2a78d6;--accent:#2a78d6;--accent-soft:#e8f0fb;--head:#1f2a37;--head-fg:#ffffff;--q-go:#eaf2fc}
+@media (prefers-color-scheme:dark){:root{color-scheme:dark;--bg:#121211;--card:#1c1c1b;--fg:#f2f2f0;--muted:#b7b6ad;--line:#2f2f2d;
+ --chip:#262624;--series-1:#3987e5;--accent:#3987e5;--accent-soft:#1d2a3b;--head:#0d1620;--head-fg:#f2f2f0;--q-go:#18263a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.55 -apple-system,"Apple SD Gothic Neo",sans-serif}
+.top{background:var(--head);color:var(--head-fg);padding:18px 0 64px}.top .in{max-width:1200px;margin:0 auto;padding:0 16px}
+.top h1{font-size:22px;margin:0}.top .sub{opacity:.75;font-size:13px}
+.wrap{max-width:1200px;margin:-48px auto 0;padding:0 16px 32px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--card);border-radius:10px;padding:12px 14px;border-top:3px solid var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.tile .muted{font-size:12px}.big{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums}
+.card{background:var(--card);border-radius:12px;padding:16px 18px;margin-top:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.card h2{font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+.num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:7px;background:var(--accent);color:#fff;font-size:13px}
+.desc{color:var(--muted);font-size:12px;margin-bottom:10px}
+.muted{color:var(--muted);font-size:12px}.small{font-size:12px}a{color:inherit}a:hover{color:var(--accent)}
+.quadwrap{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;align-items:start}
+@media (max-width:820px){.quadwrap{grid-template-columns:1fr}}
+.quad{width:100%;height:auto}.grid{stroke:var(--line);stroke-width:1.5}
+.ql{fill:var(--muted);font-size:12px;font-weight:600}.axis{fill:var(--muted);font-size:11px}.dl{fill:var(--fg);font-size:11px}
+.dot{cursor:pointer;outline:none}.dot:hover .dl,.dot:focus .dl,.dot.sel .dl{font-weight:700;fill:var(--accent)}
+.dot.sel circle:nth-of-type(2){r:7}.lead{stroke:var(--muted);stroke-width:1}
+.detail{position:sticky;top:12px;background:var(--accent-soft);border-radius:10px;padding:14px;min-height:150px;font-size:13px}
+.detail h3{margin:0 0 8px;font-size:15px}.detail dl{display:grid;grid-template-columns:auto 1fr;gap:4px 10px;margin:0}
+.detail dt{color:var(--muted)}.detail dd{margin:0;font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
 .scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;min-width:900px}
-td,th{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
-th{font-size:12px;color:var(--muted);font-weight:500}td.n{text-align:right;font-variant-numeric:tabular-nums}
+th{background:var(--chip);font-size:12px;color:var(--muted);font-weight:600;text-align:left;padding:8px 6px;position:sticky;top:0}
+td{padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle}tbody tr:nth-child(even){background:color-mix(in srgb,var(--chip) 45%,transparent)}
+tbody tr:hover{background:var(--accent-soft)}td.n{text-align:right;font-variant-numeric:tabular-nums}
 .bar{display:inline-block;width:80px;height:8px;background:var(--chip);border-radius:4px;vertical-align:middle;margin-right:6px}
-.bar span{display:block;height:8px;background:var(--series-1);border-radius:4px}.v{font-variant-numeric:tabular-nums}
+.bar span{display:block;height:8px;background:var(--series-1);border-radius:4px}.v{font-variant-numeric:tabular-nums;font-weight:600}
+.verdict{display:inline-block;border-radius:999px;padding:2px 9px;font-size:12px;white-space:nowrap;border:1px solid var(--line)}
+.verdict.vgo{background:var(--accent-soft);border-color:var(--accent);font-weight:600}
 .chg{font-size:12px}.chip{display:inline-block;background:var(--chip);border-radius:6px;padding:3px 8px;margin:3px;font-size:12px}
-.chip.new{border:1px solid var(--fg)}.gen{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;font-size:13px}.gen ol{margin:6px 0 0;padding-left:20px}.gen li{margin:3px 0}a{color:inherit}
-details{margin-top:8px}summary{cursor:pointer;color:var(--muted);font-size:12px}
-</style></head><body><div class="wrap">
-<h1>트렌드 계기판</h1><div class="muted">기준 __AT__ · 매일 아침 갱신 · "탐님 관심" vs "시청자 반응"</div>
-<div class="tiles">__TILES__</div>
+.chip.new{background:var(--accent-soft);border:1px solid var(--accent)}
+.gen{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.gcol{border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px}
+.ghead{font-weight:700;margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+.gcol ol{margin:6px 0 0;padding-left:20px}.gcol li{margin:6px 0}.news{font-size:12px;margin-top:2px}
+.pill{display:inline-block;background:var(--chip);border-radius:999px;padding:0 7px;font-size:11px;color:var(--muted)}
+.more{display:inline-block;margin-top:6px;font-size:12px;color:var(--accent)}
+details summary{cursor:pointer;color:var(--muted);font-size:12px}
+</style></head><body>
+<header class="top"><div class="in"><h1>트렌드 계기판</h1><div class="sub">기준 __AT__ · 매일 아침 08:30 갱신 · "탐님 관심" vs "시청자 반응"</div></div></header>
+<div class="wrap"><div class="tiles">__TILES__</div>
 
-<h2>① 관심 vs 반응 — 무엇을 만들까</h2>
-<div class="muted">가로 = 탐님 관심(★), 세로 = 시청자 반응 지수. 가로선 = 오늘 키워드들의 반응 중간값(__CUT__). 점이나 이름에 마우스를 올리거나 누르면 숫자가 보입니다.</div>
+<section class="card"><h2><span class="num">1</span>관심 vs 반응 — 무엇을 만들까</h2>
+<div class="desc">가로 = 탐님 관심(★), 세로 = 시청자 반응 지수. 가로선 = 오늘 키워드들의 반응 중간값(__CUT__). 점이나 이름에 마우스를 올리거나 누르면 숫자가 보입니다.</div>
 __QUAD__
 <details><summary>반응 지수는 어떻게 계산하나</summary><div class="small">
 0~100. <b>유튜브 영상당 평균 조회</b>(최근 7일, 한국) 50점 + <b>댓글 수</b> 20점 + <b>구글 검색 관심도 변화</b>(최근 7일 vs 이전 7일) 30점.
-영상당 평균 조회가 높다 = 사람들이 이 주제 영상을 실제로 본다. 영상 수가 적은데 평균 조회가 높으면 경쟁이 적은 기회.</div></details>
+영상당 평균 조회가 높다 = 사람들이 이 주제 영상을 실제로 본다. 영상 수가 적은데 평균 조회가 높으면 경쟁이 적은 기회.</div></details></section>
 
-<h2>② 키워드 비교표</h2>
+<section class="card"><h2><span class="num">2</span>키워드 비교표</h2><div class="desc">반응 지수 높은 순. 표 머리글은 스크롤해도 고정.</div>
 <div class="scroll"><table><thead><tr><th>키워드</th><th>반응 지수</th><th>판정</th><th>유튜브 영상<br>(7일)</th><th>영상당<br>평균 조회</th><th>댓글</th>
-<th>구글 검색 관심도<br>(한국 30일)</th><th>업계 언급<br>(24시간)</th><th>반응 추이</th><th>가장 많이 본 영상</th></tr></thead><tbody>__ROWS__</tbody></table></div>
+<th>구글 검색 관심도<br>(한국 30일)</th><th>업계 언급<br>(24시간)</th><th>반응 추이</th><th>가장 많이 본 영상</th></tr></thead><tbody>__ROWS__</tbody></table></div></section>
 
-<h2>③ 유튜브 인기 영상 — 시청자가 실제로 본 것 (최근 7일)</h2>
-<div class="scroll"><table><thead><tr><th>조회</th><th>영상</th><th>댓글</th><th>키워드</th></tr></thead><tbody>__VIDS__</tbody></table></div>
+<section class="card"><h2><span class="num">3</span>유튜브 인기 영상 — 시청자가 실제로 본 것 (최근 7일)</h2>
+<div class="scroll"><table><thead><tr><th>조회</th><th>영상</th><th>댓글</th><th>키워드</th></tr></thead><tbody>__VIDS__</tbody></table></div></section>
 
-<h2>④ 🆕 새로 등장한 단어</h2><div>__NEW__</div>
-<h2>⑤ 지난 24시간 많이 나온 단어</h2><div>__WORDS__</div>
+<section class="card"><h2><span class="num">4</span>🆕 새로 등장한 단어</h2><div>__NEW__</div>
+<h2 style="margin-top:14px"><span class="num">5</span>지난 24시간 많이 나온 단어</h2><div>__WORDS__</div></section>
 <script>
-const tip=document.getElementById('tip'),wrap=document.querySelector('.quadwrap');
-function show(g,ev){const [t,...rest]=g.dataset.tip.split('|');tip.innerHTML='<b>'+t+'</b><br>'+rest.join('<br>');tip.hidden=false;
- const wr=wrap.getBoundingClientRect(),gr=g.querySelector('circle').getBoundingClientRect();
- let x=gr.right-wr.left+8,y=gr.top-wr.top-8; if(x+tip.offsetWidth>wr.width) x=gr.left-wr.left-tip.offsetWidth-8; tip.style.left=x+'px';tip.style.top=Math.max(0,y)+'px'}
-document.querySelectorAll('.dot').forEach(g=>{g.addEventListener('mouseenter',ev=>show(g,ev));g.addEventListener('focus',ev=>show(g,ev));
- g.addEventListener('click',ev=>{ev.stopPropagation();show(g,ev)});g.addEventListener('mouseleave',()=>tip.hidden=true)});
-document.addEventListener('click',()=>tip.hidden=true);
+const panel=document.getElementById('detail');
+function show(g){document.querySelectorAll('.dot.sel').forEach(x=>x.classList.remove('sel'));g.classList.add('sel');
+ const [t,...rest]=g.dataset.tip.split('|');
+ panel.innerHTML='<h3>'+t+'</h3><dl>'+rest.map(r=>{const m=r.match(/^(.*?)\s([^\s]+)$/);return m?'<dt>'+m[1]+'</dt><dd>'+m[2]+'</dd>':'<dt>'+r+'</dt><dd></dd>'}).join('')+'</dl>'}
+document.querySelectorAll('.dot').forEach(g=>{g.addEventListener('mouseenter',()=>show(g));g.addEventListener('focus',()=>show(g));g.addEventListener('click',()=>show(g))});
 </script>
-<h2>⑥ 전체 트렌드 흐름 <span class="muted">(AI 무관 · 참고용)</span></h2>
-<div class="gen">__GENERAL__</div>
+<section class="card"><h2><span class="num">6</span>전체 트렌드 흐름 <span class="muted">(AI 무관 · 참고용)</span></h2>
+<div class="gen">__GENERAL__</div></section>
 <p class="muted" style="margin-top:28px">출처: 유튜브 Data API(공식) · 구글 트렌드(한국) · 틱톡 크리에이티브 센터(비로그인 공개 화면) · 레이더 수집 37곳(RSS·공식 블로그·커뮤니티). 업계 언급은 "우리가 지켜보는 곳 안에서의 숫자"이며 전국 검색량이 아님.</p>
 </div></body></html>"""
