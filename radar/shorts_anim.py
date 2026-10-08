@@ -48,6 +48,22 @@ def _clova(text: str, speaker: str, speed: str, out: Path) -> bool:
     return True
 
 
+FX_GAP = 0.8                          # 오프닝·장면 시작 소리와 효과 사이 최소 틈(초)
+FX_TAIL = {"good": 1.6, "bad": 2.6}   # 효과가 끝까지 보이려면 필요한 시간(초) — 모자라면 장면을 늘린다
+
+
+def _fx_time(narration: str, target: str | None, offset: float, speech: float) -> float:
+    """효과를 터뜨릴 시각 = 핵심 단어를 말하는 순간. 자막 하이라이트와 같은 방식(글자 수 비례)으로 계산한다.
+    target(fx_at)을 주면 그 단어, 없으면 대본의 첫 **강조** 단어."""
+    words = narration.split()
+    clean = [w.replace("**", "") for w in words]
+    idx = next((k for k, w in enumerate(clean) if target and target in w), None)
+    if idx is None:
+        idx = next((k for k, w in enumerate(words) if "**" in w), 0)
+    total = sum(len(w) for w in clean) or 1
+    return offset + sum(len(w) for w in clean[:idx]) / total * speech
+
+
 def _chirp(kind: str, seed: int, out: Path) -> float:
     """귀여운 로봇 소리를 합성해 wav로 저장하고 길이(초)를 돌려준다.
     biri = 장면 시작 "비리비리", bibik = 훅 "삐빅!", down = 마무리 "삐리~" (내려가는 소리)"""
@@ -156,7 +172,7 @@ BOT = [
 ]
 
 JS = r"""(() => {   // 같은 페이지에 장면을 다시 넣어도 변수가 겹치지 않게 감싼다
-const BOT = %BOT%, TYPE = %TYPE%, MOOD = %MOOD%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%, INTRO = %INTRO%;
+const BOT = %BOT%, TYPE = %TYPE%, MOOD = %MOOD%, SPEECH = %SPEECH%, OFFSET = %OFFSET%, CHIRP = %CHIRP%, INTRO = %INTRO%, FXAT = %FXAT%;
 const COL = {k:'#4a5a70', w:'#e8eef5', d:'#0f2233', e:'#5ae0ff', m:'#5ae0ff', s:'#9fb0c3', c:'#ff7a6b', a:'#ffd166', A:'#7a6a3a', x:'#7ec8ff'};
 const cv = document.getElementById('bot'), g = cv.getContext('2d');
 const rv = [...document.querySelectorAll('.stage .rv')];
@@ -192,9 +208,9 @@ function drawBot(t) {
     const u = t - FX_T0;
     if (u > 0 && u < 0.5) { dy = -Math.round(Math.sin(Math.PI * u / 0.5) * 3); arm = 'point'; }
     else if (u >= 0.5 && u < 3) arm = Math.floor(t * 5) % 2 ? 'wave1' : 'wave2';
-    mood = 'happy';
+    if (u > 0) mood = 'happy';
   }
-  if (MOOD === 'bad') {              // 우산 들고 버티다가 → 돌풍에 우산 날아감 → 손 뻗고 울먹
+  if (MOOD === 'bad' && t >= RAIN0) {   // 우산 들고 버티다가 → 돌풍에 우산 날아감 → 손 뻗고 울먹
     if (t < GUST) { arm = 'point'; if (t > GUST - 0.5) dx = Math.floor(t * 18) % 2 ? 1 : 0; }
     else { arm = (t - GUST) < 1.2 ? (Math.floor(t * 8) % 2 ? 'wave1' : 'wave2') : 'down'; mood = 'sad'; }
     look = 0;
@@ -227,7 +243,7 @@ function drawBot(t) {
 // ── 효과 층: 색종이(좋은 소식) / 비 + 날아가는 우산(나쁜 소식) ──
 const P = 9, BX = 1080 - 170 - 144, BY = 1036;        // 픽셀 크기, 로봇 캔버스 왼쪽 위
 const HAND = [BX + 14.5 * P, BY + 10.5 * P];
-const FX_T0 = 0.18, GUST = 1.6;
+const FX_T0 = FXAT - INTRO, RAIN0 = FX_T0 - 0.25, GUST = FX_T0 + 1.4;   // 효과는 핵심 단어를 말하는 순간(FXAT)에 맞춘다
 let botDx = 0, botDy = 0;
 const fx = document.getElementById('fx'), f = fx.getContext('2d');
 function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let x = Math.imul(seed ^ seed >>> 15, 1 | seed);
@@ -263,8 +279,10 @@ function drawUmbrella(x, y, th) {
   f.restore();
 }
 function drawRain(t) {
-  f.fillStyle = 'rgba(8,14,26,0.22)'; f.fillRect(0, 0, 1080, 1920);
-  f.fillStyle = 'rgba(126,200,255,0.55)';
+  if (t < RAIN0) return;
+  const fade = Math.min(1, (t - RAIN0) / 0.3);                  // 비는 서서히 들어온다
+  f.fillStyle = `rgba(8,14,26,${0.22 * fade})`; f.fillRect(0, 0, 1080, 1920);
+  f.fillStyle = `rgba(126,200,255,${0.55 * fade})`;
   for (const d of drops) {
     const cyc = 2100 / d.sp, u = ((t + d.ph * cyc) % cyc), y = -100 + d.sp * u, x = d.x + wind(t) * u * 0.7;
     const sx = wind(t) / d.sp;                                  // 바람 방향으로 기운 빗줄기
@@ -459,10 +477,10 @@ def _caption(text: str) -> str:
 
 
 def _page(sc: dict, i: int, n: int, speech: float, offset: float = 0.0, chirp: float = 0.0,
-          intro: float = 0.0, intro_text: str = "BIG NEWS!") -> str:
+          intro: float = 0.0, intro_text: str = "BIG NEWS!", fx_at: float = 0.0) -> str:
     dots = "".join(f'<i class="{"on" if k == i else ""}"></i>' for k in range(n))
     js = (JS.replace("%BOT%", json.dumps(BOT)).replace("%TYPE%", json.dumps(sc["type"])).replace("%MOOD%", json.dumps(sc.get("mood", ""))).replace("%SPEECH%", f"{speech:.3f}")
-          .replace("%OFFSET%", f"{offset:.3f}").replace("%CHIRP%", f"{chirp:.3f}").replace("%INTRO%", f"{intro:.3f}"))
+          .replace("%OFFSET%", f"{offset:.3f}").replace("%CHIRP%", f"{chirp:.3f}").replace("%INTRO%", f"{intro:.3f}").replace("%FXAT%", f"{fx_at:.3f}"))
     return (f"<html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"
             f'<div class="top"><span class="kicker">{_fmt(sc["kicker"])}</span><span class="dots">{dots}</span></div>'
             f'<div class="stage">{_body(sc)}</div><canvas id="fx" width="1080" height="1920"></canvas><div class="cap">{_caption(sc["narration"])}</div>'
@@ -488,15 +506,25 @@ def render(spec_path: str) -> Path:
             _run(["say", "-v", spec.get("voice", "Yuna"), "-r", str(spec.get("rate", 200)), "-o", str(raw), text])
         speech = float(_run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(raw)]))
         intro = INTRO if (i == 0 and spec.get("intro", True)) else 0.0     # 첫 장면엔 채널 오프닝 "빅뉴스!!!"
-        kind = "intro" if intro else ({"good": "yay", "bad": "sad"}.get(sc.get("mood"))
-                                      or {"hook": "bibik", "outro": "down"}.get(sc["type"], "biri"))
+        kind = "intro" if intro else {"hook": "bibik", "outro": "down"}.get(sc["type"], "biri")
         chirp = _chirp(kind, i, work / f"s{i}.chirp.wav")
         offset = round(max(chirp - 0.04, intro + 0.05), 3)
-        _run(["ffmpeg", "-y", "-i", str(raw), "-i", str(work / f"s{i}.chirp.wav"), "-filter_complex",
-              f"[0:a]aresample={SR},aformat=channel_layouts=stereo,adelay={int(offset * 1000)}:all=1[v];"
-              f"[1:a]aformat=channel_layouts=stereo[c];[v][c]amix=inputs=2:duration=longest:normalize=0,apad=pad_dur={PAD}",
-              "-ar", str(SR), "-ac", "2", str(work / f"s{i}.wav")])
-        durs.append((speech, offset + speech + PAD, offset, 0.0 if intro else chirp, intro))
+        dur = offset + speech + PAD
+        ins = ["-i", str(raw), "-i", str(work / f"s{i}.chirp.wav")]
+        mix = (f"[0:a]aresample={SR},aformat=channel_layouts=stereo,adelay={int(offset * 1000)}:all=1[v];"
+               f"[1:a]aformat=channel_layouts=stereo[c];")
+        fx_at, mood = 0.0, sc.get("mood")
+        if mood in FX_TAIL:      # 좋은/나쁜 소식 효과: 핵심 단어 순간에, 앞 효과와 틈을 두고
+            fx_at = max(_fx_time(sc["narration"], sc.get("fx_at"), offset, speech), (intro or chirp) + FX_GAP)
+            dur = max(dur, fx_at + FX_TAIL[mood])
+            _chirp({"good": "yay", "bad": "sad"}[mood], i, work / f"s{i}.mood.wav")
+            ins += ["-i", str(work / f"s{i}.mood.wav")]
+            mix += f"[2:a]aformat=channel_layouts=stereo,adelay={int(fx_at * 1000)}:all=1[m];[v][c][m]amix=inputs=3"
+        else:
+            mix += "[v][c]amix=inputs=2"
+        mix += f":duration=longest:normalize=0,apad=whole_dur={dur:.3f}"
+        _run(["ffmpeg", "-y", *ins, "-filter_complex", mix, "-ar", str(SR), "-ac", "2", str(work / f"s{i}.wav")])
+        durs.append((speech, dur, offset, 0.0 if intro else chirp, intro, fx_at))
 
     # 2) 장면마다 t를 1/30초씩 움직이며 찍어서 ffmpeg로 바로 넘긴다
     from playwright.sync_api import sync_playwright
@@ -505,8 +533,8 @@ def render(spec_path: str) -> Path:
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H})
         for i, sc in enumerate(scenes):
-            speech, dur, offset, chirp, intro = durs[i]
-            pg.set_content(_page(sc, i, len(scenes), speech, offset, chirp, intro, spec.get("intro_text", "BIG NEWS!")))
+            speech, dur, offset, chirp, intro, fx_at = durs[i]
+            pg.set_content(_page(sc, i, len(scenes), speech, offset, chirp, intro, spec.get("intro_text", "BIG NEWS!"), fx_at))
             seg = work / f"s{i}.mp4"
             enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-i", "-",
                                     "-i", str(work / f"s{i}.wav"), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
