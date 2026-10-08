@@ -80,12 +80,13 @@ def _shorts_page():
     cards = []
     for k, v in enumerate(vids, 1):
         shutil.copy2(v, SITE / "shorts" / v.name)
-        spec = ROOT / "briefs" / "shorts" / f"{v.stem}.json"
+        v2 = v.stem.endswith("-v2")
+        spec = ROOT / "briefs" / "shorts" / f"{v.stem.removesuffix('-v2')}.json"
         meta = json.loads(spec.read_text(encoding="utf-8")) if spec.exists() else {}
-        title = meta.get("title", v.stem)
+        title = meta.get("title", v.stem) + (" — v2 캐릭터·움직임" if v2 else "")
         src = "".join(f"<li>{s}</li>" for s in meta.get("sources", []))
         cards.append(f'''<article class="v"><video src="shorts/{v.name}" controls playsinline preload="metadata"></video>
-<div class="t"><b>{k}. {title}</b><div class="m">{meta.get("line", "")} · {v.stem[:10]} · 러프 샘플(무료: 장면 카드 + 맥 음성)</div>
+<div class="t"><b>{k}. {title}</b><div class="m">{meta.get("line", "")} · {v.stem[:10]} · {"v2: 레이더 로봇 + 형광펜·카운트업" if v2 else "v1: 정지 카드 + 맥 음성"}</div>
 <ul class="m">{src}</ul></div></article>''')
     page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>샘플 영상</title><style>

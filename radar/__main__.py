@@ -92,6 +92,9 @@ def main():
     if cmd == "shorts":
         from . import shorts
         print("숏폼 샘플 →", shorts.render(sys.argv[2]))
+    if cmd == "shorts2":
+        from . import shorts_anim
+        print("숏폼 샘플(v2 움직임) →", shorts_anim.render(sys.argv[2]))
         return
     if cmd == "deploy":
         site.deploy(force=True)

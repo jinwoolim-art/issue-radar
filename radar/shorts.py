@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "out" / "shorts"
 W, H, FPS = 1080, 1920, 30
-e = lambda s: html.escape(str(s)).replace("\n", "<br>")
+e = lambda s: html.escape(str(s).replace("**", "")).replace("\n", "<br>")   # v2 강조 표시(**)는 v1에선 지움
 
 CSS = """
 :root{--bg:#10151c;--panel:#18202b;--fg:#f4f6f8;--muted:#9aa7b4;--accent:#5ab0ff;--hot:#ffd166;--bad:#ff7a6b;--good:#7bd88f}
@@ -121,7 +121,7 @@ def render(spec_path: str) -> Path:
     parts = []
     for i, sc in enumerate(scenes):
         aiff, wav = work / f"s{i}.aiff", work / f"s{i}.wav"
-        _run(["say", "-v", spec.get("voice", "Yuna"), "-r", str(spec.get("rate", 200)), "-o", str(aiff), sc["narration"]])
+        _run(["say", "-v", spec.get("voice", "Yuna"), "-r", str(spec.get("rate", 200)), "-o", str(aiff), sc["narration"].replace("**", "")])
         _run(["ffmpeg", "-y", "-i", str(aiff), "-af", "apad=pad_dur=0.35", "-ar", "44100", "-ac", "2", str(wav)])
         dur = float(_run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(wav)]))
         frames = int(dur * FPS) + 1

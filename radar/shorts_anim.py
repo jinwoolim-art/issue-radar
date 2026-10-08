@@ -1,0 +1,258 @@
+"""장면표(JSON) → 움직이는 세로 숏폼(v2). 글자 중심 + 채널 캐릭터(안테나 로봇 '레이더').
+
+v1(shorts.py)은 정지 카드를 천천히 확대했다. v2는 장면을 시간 t의 함수로 그려 초당 30장씩 찍는다.
+  - 핵심 단어 형광펜: 장면표 글자 안에서 **이렇게** 감싸면 된다
+  - 숫자 카운트업: stat 값, price 할인가
+  - 요소가 차례로 등장, 자막은 읽는 속도에 맞춰 밝아짐
+  - 로봇은 장면 종류마다 다르게 반응 (훅=점프, 비교=두리번, 숫자=가리키기, 주의=땀, 마무리=손 흔들기)
+같은 화면을 다시 찍어도 똑같이 나오도록(재현 가능) 애니메이션은 모두 render(t) 한 함수에서 계산한다.
+사용: python -m radar shorts2 briefs/shorts/파일.json → out/shorts/파일-v2.mp4
+"""
+import html
+import json
+import re
+import subprocess
+from pathlib import Path
+
+from .shorts import OUT, W, H, _run
+
+FPS = 30
+PAD = 0.35   # 장면 끝 여백(초)
+
+
+def _fmt(s) -> str:
+    """글자 이스케이프 + **강조** → 형광펜, 줄바꿈 → <br>"""
+    s = html.escape(str(s)).replace("\n", "<br>")
+    return re.sub(r"\*\*(.+?)\*\*", r'<mark class="hl">\1</mark>', s)
+
+
+CSS = """
+:root{--bg:#10151c;--panel:#18202b;--fg:#f4f6f8;--muted:#9aa7b4;--accent:#5ab0ff;--hot:#ffd166;--bad:#ff7a6b;--good:#7bd88f}
+*{box-sizing:border-box;margin:0}
+body{width:1080px;height:1920px;background:radial-gradient(1200px 900px at 80% 10%,#1d2a3a 0,var(--bg) 60%);color:var(--fg);
+ font-family:"Apple SD Gothic Neo","Noto Sans KR",sans-serif;overflow:hidden;position:relative;word-break:keep-all}
+.top{position:absolute;top:120px;left:80px;right:160px;display:flex;align-items:center;gap:18px}
+.kicker{background:var(--accent);color:#08111b;font-weight:800;font-size:38px;padding:10px 26px;border-radius:999px}
+.dots{margin-left:auto;display:flex;gap:10px}.dots i{width:16px;height:16px;border-radius:50%;background:#33404f}.dots i.on{background:var(--fg)}
+.stage{position:absolute;top:250px;left:80px;right:160px;height:770px;display:flex;flex-direction:column;justify-content:center;gap:30px}
+.cap{position:absolute;top:1180px;left:70px;right:150px;background:rgba(0,0,0,.55);border-radius:28px;padding:30px 36px;
+ font-size:50px;line-height:1.38;font-weight:700;text-wrap:balance}
+.cap span{opacity:.35}.cap span.on{opacity:1}.cap mark{background:none;color:var(--hot)}
+.tag{position:absolute;bottom:90px;left:80px;font-size:28px;color:var(--muted)}
+.rv{opacity:0}
+mark.hl{color:inherit;background:linear-gradient(transparent 58%,rgba(255,209,102,.55) 58%) no-repeat;background-size:0% 100%;padding:0 4px;border-radius:4px}
+.big{font-size:330px;font-weight:900;letter-spacing:-8px;color:var(--hot);line-height:1}
+.big.mid{font-size:190px;letter-spacing:-4px}.big.sm{font-size:130px;letter-spacing:-2px}
+.h{font-size:86px;font-weight:900;line-height:1.2;letter-spacing:-2px}
+.card{background:var(--panel);border-radius:32px;padding:38px 40px}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:22px}.cmp .card{padding:44px 30px}
+.cmp .lab{font-size:40px;color:var(--muted);margin-bottom:26px}.cmp .row{font-size:62px;font-weight:900;margin:14px 0}
+.cmp .row.sm{font-size:46px;font-weight:700}.cmp .after{outline:5px solid var(--bad)}
+.plan{font-size:46px;color:var(--muted)}.was{font-size:90px;color:var(--muted);text-decoration:line-through;text-decoration-thickness:8px}
+.now{font-size:170px;font-weight:900;color:var(--hot);letter-spacing:-4px;line-height:1}
+.badge{display:inline-block;background:var(--hot);color:#1a1300;font-weight:900;font-size:46px;padding:12px 28px;border-radius:18px}
+.note{font-size:42px;color:var(--muted)}
+.grp .gl{font-size:44px;font-weight:900;margin-bottom:16px}.grp .gl.ok{color:var(--good)}.grp .gl.maybe{color:var(--hot)}
+.grp li{font-size:48px;margin:12px 0 12px 44px}
+.warn{border:6px solid var(--hot)}.warn li{font-size:54px;font-weight:800;margin:18px 0 18px 50px}
+.dt{display:flex;align-items:baseline;gap:30px;margin:14px 0}.dt b{font-size:130px;color:var(--hot);font-weight:900;letter-spacing:-3px;min-width:330px}
+.dt span{font-size:50px;font-weight:700}
+.step{display:flex;gap:28px;align-items:flex-start;margin:6px 0}.step b{flex:none;width:92px;height:92px;border-radius:50%;background:var(--accent);
+ color:#08111b;font-size:52px;font-weight:900;display:flex;align-items:center;justify-content:center}.step span{font-size:52px;font-weight:800;line-height:1.3;padding-top:12px}
+.stat{font-size:200px;font-weight:900;color:var(--hot);letter-spacing:-5px;line-height:1}.stat.mid{font-size:140px}
+.statl{font-size:56px;font-weight:800;line-height:1.3}.src{font-size:36px;color:var(--muted)}
+.quote{border-left:14px solid var(--accent);padding:10px 0 10px 40px;font-size:60px;font-weight:800;line-height:1.35}
+.qsrc{font-size:38px;color:var(--muted)}
+#bot{position:absolute;right:170px;top:1036px;width:144px;height:153px;image-rendering:pixelated}
+#bang{position:absolute;right:196px;top:950px;background:var(--hot);color:#1a1300;font:900 56px/1 "Apple SD Gothic Neo",sans-serif;
+ padding:10px 22px;border-radius:14px;opacity:0}
+"""
+
+# 안테나 로봇 '레이더' — 16x17 픽셀. a 안테나, k 테두리, w 몸, d 얼굴 화면, e 눈, m 입, s 팔·몸 그늘, c 가슴 불빛
+BOT = [
+    "......aaa.......",
+    "......aaa.......",
+    ".......k........",
+    "...kkkkkkkkkk...",
+    "..kwwwwwwwwwwk..",
+    "..kwddddddddwk..",
+    "..kwdeeddeedwk..",
+    "..kwdeeddeedwk..",
+    "..kwddddddddwk..",
+    "..kwdddmmdddwk..",
+    "..kwwwwwwwwwwk..",
+    "...kkkkkkkkkk...",
+    "....kkkkkkkk....",
+    "....kwwccwwk....",
+    "....kwwwwwwk....",
+    "....kkkkkkkk....",
+    ".....kk..kk.....",
+]
+
+JS = r"""(() => {   // 같은 페이지에 장면을 다시 넣어도 변수가 겹치지 않게 감싼다
+const BOT = %BOT%, TYPE = %TYPE%, SPEECH = %SPEECH%;
+const COL = {k:'#4a5a70', w:'#e8eef5', d:'#0f2233', e:'#5ae0ff', m:'#5ae0ff', s:'#9fb0c3', c:'#ff7a6b', a:'#ffd166', A:'#7a6a3a', x:'#7ec8ff'};
+const cv = document.getElementById('bot'), g = cv.getContext('2d');
+const rv = [...document.querySelectorAll('.stage .rv')];
+const n = rv.length, gap = n ? Math.min(0.45, (SPEECH * 0.5) / n) : 0;
+rv.forEach((el, i) => el.dataset.at = 0.12 + i * gap);
+const words = [...document.querySelectorAll('.cap span')];
+const total = words.reduce((a, w) => a + w.textContent.length, 0);
+let acc = 0; words.forEach(w => { w.dataset.at = (acc / total) * SPEECH; acc += w.textContent.length; });
+document.querySelectorAll('.cnt').forEach(el => el.dataset.to = el.textContent);
+const ease = x => 1 - Math.pow(1 - Math.min(Math.max(x, 0), 1), 3);
+
+function countText(src, p) {        // "174,000원" → p(0~1)만큼 올라간 숫자, 형식(쉼표·소수점)은 유지
+  const m = src.match(/\d[\d,]*(\.\d+)?/); if (!m) return src;
+  const dec = m[1] ? m[1].length - 1 : 0, v = parseFloat(m[0].replace(/,/g, '')) * p;
+  let s = v.toFixed(dec); if (m[0].includes(',')) s = Number(s).toLocaleString('en-US', {minimumFractionDigits: dec, maximumFractionDigits: dec});
+  return src.replace(m[0], s);
+}
+
+function drawBot(t) {
+  const grid = BOT.map(r => r.split(''));
+  const set = (x, y, ch) => { if (grid[y] && x >= 0 && x < 16) grid[y][x] = ch; };
+  const eyes = (pat) => { for (const y of [6, 7]) pat.split('').forEach((ch, i) => set(4 + i, y, ch)); };
+  let dx = 0, dy = (Math.floor(t * 2) % 2) ? 0 : -1, look = 0, arm = 'down', mouth = 'n', sweat = false;
+  if (TYPE === 'hook' && t < 0.7) { dy = -Math.round(Math.sin(Math.PI * t / 0.7) * 4); mouth = 'o'; }
+  if (TYPE === 'compare') look = Math.floor(t / 0.9) % 2 ? 1 : -1;
+  if (TYPE === 'stat' || TYPE === 'price') { arm = t > 0.3 ? 'point' : 'down'; look = -1; }
+  if (TYPE === 'quote') look = -1;
+  if (TYPE === 'warning') { if (t % 1.2 < 0.5) dx = Math.floor(t * 14) % 2 ? 1 : -1; sweat = true; mouth = 'o'; }
+  if (TYPE === 'steps' || TYPE === 'checklist') dy = (t % 0.8) < 0.15 ? 1 : 0;
+  if (TYPE === 'outro') arm = Math.floor(t * 4) % 2 ? 'wave1' : 'wave2';
+  // 눈: 깜빡임 > 두리번
+  if (t % 2.8 < 0.12) { eyes('dddddddd'); for (let i = 0; i < 8; i++) set(4 + i, 7, 'deeddeed'[i]); }
+  else if (look < 0) eyes('eeddeedd'); else if (look > 0) eyes('ddeeddee');
+  if (mouth === 'o') { set(7, 8, 'm'); set(8, 8, 'm'); }
+  // 안테나·가슴 불빛 깜빡
+  if (Math.floor(t * 3) % 2) for (const [x, y] of [[6,0],[7,0],[8,0],[6,1],[7,1],[8,1]]) set(x, y, 'A');
+  if (Math.floor(t * 1.5) % 2) { set(7, 13, 'w'); set(8, 13, 'w'); }
+  // 팔
+  const arms = {down: [[3,13],[3,14],[12,13],[12,14]], point: [[3,13],[3,14],[12,12],[13,11],[14,10]],
+                wave1: [[3,13],[3,14],[13,12],[14,11],[14,10]], wave2: [[3,13],[3,14],[13,12],[13,11],[12,10]]};
+  for (const [x, y] of arms[arm]) set(x, y, 's');
+  if (sweat) set(14, 4 + Math.floor((t * 6) % 4), 'x');
+  g.clearRect(0, 0, 16, 17);
+  grid.forEach((row, y) => row.forEach((ch, x) => { if (ch !== '.') { g.fillStyle = COL[ch]; g.fillRect(x, y, 1, 1); } }));
+  cv.style.transform = `translate(${dx * 9}px, ${dy * 9}px)`;
+  const bang = document.getElementById('bang');
+  bang.style.opacity = (TYPE === 'hook' && t > 0.15 && t < 1.8) ? 1 : 0;
+}
+
+window.render = (t) => {
+  rv.forEach(el => {
+    const p = ease((t - el.dataset.at) / 0.3);
+    el.style.opacity = p; el.style.transform = `translateY(${(1 - p) * 28}px)`;
+    el.querySelectorAll('mark.hl').forEach(mk => mk.style.backgroundSize = `${ease((t - el.dataset.at - 0.3) / 0.4) * 100}% 100%`);
+    el.querySelectorAll('.cnt').forEach(c => c.textContent = countText(c.dataset.to, ease((t - el.dataset.at) / 0.9)));
+  });
+  words.forEach(w => w.classList.toggle('on', t >= w.dataset.at));
+  drawBot(t);
+};
+})();
+"""
+
+
+def _body(sc: dict) -> str:
+    t, f = sc["type"], _fmt
+    if t == "hook":
+        size = "" if len(sc["big"]) <= 4 else ("mid" if len(sc["big"]) <= 7 else "sm")
+        return f'<div class="big {size} rv">{f(sc["big"])}</div><div class="h rv">{f(sc["text"])}</div>'
+    if t == "compare":
+        small = any(len(r) > 9 for c in (sc["left"], sc["right"]) for r in c["rows"])
+
+        def col(c, cls):
+            return f'<div class="card {cls} rv"><div class="lab">{f(c["label"])}</div>' + "".join(
+                f'<div class="row{" sm" if small else ""}">{f(r)}</div>' for r in c["rows"]) + "</div>"
+        return f'<div class="cmp">{col(sc["left"], "")}{col(sc["right"], "after" if sc.get("mark_right", True) else "")}</div>'
+    if t == "price":
+        return (f'<div class="plan rv">{f(sc["plan"])}</div><div class="was rv">{f(sc["before"])}</div>'
+                f'<div class="now rv"><span class="cnt">{html.escape(sc["after"])}</span></div>'
+                f'<div class="rv"><span class="badge">{f(sc["badge"])}</span></div><div class="note rv">{f(sc["note"])}</div>')
+    if t == "checklist":
+        return "".join(f'<div class="card grp rv"><div class="gl {"ok" if j == 0 else "maybe"}">{f(g["label"])}</div><ul>'
+                       + "".join(f"<li>{f(x)}</li>" for x in g["items"]) + "</ul></div>" for j, g in enumerate(sc["groups"]))
+    if t == "warning":
+        return '<div class="card warn rv"><ul>' + "".join(f"<li>{f(x)}</li>" for x in sc["items"]) + "</ul></div>"
+    if t == "outro":
+        return ("".join(f'<div class="dt rv"><b>{f(d)}</b><span>{f(s)}</span></div>' for d, s in sc.get("dates", []))
+                + "".join(f'<div class="statl rv">· {f(x)}</div>' for x in sc.get("lines", []))
+                + f'<div class="h rv" style="margin-top:20px">{f(sc["text"])}</div>')
+    if t == "steps":
+        return "".join(f'<div class="step rv"><b>{k + 1}</b><span>{f(x)}</span></div>' for k, x in enumerate(sc["items"]))
+    if t == "stat":
+        return "".join(f'<div class="rv"><div class="stat{" mid" if len(st["value"]) > 6 else ""}"><span class="cnt">'
+                       f'{html.escape(st["value"])}</span></div><div class="statl">{f(st["label"])}</div></div>'
+                       for st in sc["stats"]) + (f'<div class="src rv">{f(sc["source"])}</div>' if sc.get("source") else "")
+    if t == "quote":
+        return f'<div class="quote rv">“{f(sc["quote"])}”</div><div class="qsrc rv">— {f(sc["by"])}</div>'
+    raise ValueError(f"모르는 장면 종류: {t}")
+
+
+def _caption(text: str) -> str:
+    """자막을 어절 단위 span으로. **강조** 어절은 노란색."""
+    out, inside = [], False
+    for w in text.split():
+        hot = inside or w.startswith("**") or "**" in w
+        inside = (inside + w.count("**")) % 2 == 1   # 강조가 여러 어절에 걸쳐도 이어지게
+        w = html.escape(w.replace("**", ""))
+        out.append(f"<span><mark>{w}</mark></span>" if hot else f"<span>{w}</span>")
+    return " ".join(out)
+
+
+def _page(sc: dict, i: int, n: int, speech: float) -> str:
+    dots = "".join(f'<i class="{"on" if k == i else ""}"></i>' for k in range(n))
+    js = JS.replace("%BOT%", json.dumps(BOT)).replace("%TYPE%", json.dumps(sc["type"])).replace("%SPEECH%", f"{speech:.3f}")
+    return (f"<html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"
+            f'<div class="top"><span class="kicker">{_fmt(sc["kicker"])}</span><span class="dots">{dots}</span></div>'
+            f'<div class="stage">{_body(sc)}</div><div class="cap">{_caption(sc["narration"])}</div>'
+            f'<div id="bang">!</div><canvas id="bot" width="16" height="17"></canvas>'
+            f'<div class="tag">샘플 · 자료: 장면표 출처 참조</div><script>{js}</script></body></html>')
+
+
+def render(spec_path: str) -> Path:
+    spec = json.loads(Path(spec_path).read_text(encoding="utf-8"))
+    name = Path(spec_path).stem + "-v2"
+    work = OUT / name
+    work.mkdir(parents=True, exist_ok=True)
+    scenes = spec["scenes"]
+
+    # 1) 음성 먼저 — 장면 길이가 음성 길이로 정해진다
+    durs = []
+    for i, sc in enumerate(scenes):
+        aiff, wav = work / f"s{i}.aiff", work / f"s{i}.wav"
+        speech_text = sc["narration"].replace("**", "")
+        _run(["say", "-v", spec.get("voice", "Yuna"), "-r", str(spec.get("rate", 200)), "-o", str(aiff), speech_text])
+        speech = float(_run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(aiff)]))
+        _run(["ffmpeg", "-y", "-i", str(aiff), "-af", f"apad=pad_dur={PAD}", "-ar", "44100", "-ac", "2", str(wav)])
+        durs.append((speech, speech + PAD))
+
+    # 2) 장면마다 t를 1/30초씩 움직이며 찍어서 ffmpeg로 바로 넘긴다
+    from playwright.sync_api import sync_playwright
+    parts = []
+    with sync_playwright() as p:
+        b = p.chromium.launch()
+        pg = b.new_page(viewport={"width": W, "height": H})
+        for i, sc in enumerate(scenes):
+            speech, dur = durs[i]
+            pg.set_content(_page(sc, i, len(scenes), speech))
+            seg = work / f"s{i}.mp4"
+            enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-i", "-",
+                                    "-i", str(work / f"s{i}.wav"), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                                    "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-shortest", str(seg)],
+                                   stdin=subprocess.PIPE)
+            for k in range(int(dur * FPS) + 1):
+                pg.evaluate(f"render({k / FPS})")
+                enc.stdin.write(pg.screenshot(type="jpeg", quality=92))
+            enc.stdin.close()
+            if enc.wait() != 0:
+                raise RuntimeError(f"장면 {i} 인코딩 실패")
+            parts.append(seg)
+        b.close()
+
+    lst = work / "list.txt"
+    lst.write_text("".join(f"file '{q.name}'\n" for q in parts), encoding="utf-8")
+    final = OUT / f"{name}.mp4"
+    _run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(final)])
+    return final
