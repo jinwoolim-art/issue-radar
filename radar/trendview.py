@@ -237,12 +237,16 @@ tbody tr:hover{background:var(--accent-soft)}td.n{text-align:right;font-variant-
 .pill{display:inline-block;background:var(--chip);border-radius:999px;padding:0 7px;font-size:11px;color:var(--muted)}
 .more{display:inline-block;margin-top:6px;font-size:12px;color:var(--accent)}
 details summary{cursor:pointer;color:var(--muted);font-size:12px}
+@media (max-width:700px){.top{padding:14px 0 54px}.top h1{font-size:19px}
+ .tiles{grid-template-columns:repeat(3,1fr);gap:6px}.tile{padding:8px 9px}.tile .muted{font-size:10.5px}.big{font-size:15px}
+ .card{padding:14px 12px;border-radius:10px}.quadsvg{overflow-x:auto;-webkit-overflow-scrolling:touch}.quad{min-width:620px}
+ .detail{position:static;min-height:0}.gen{grid-template-columns:1fr}}
 </style></head><body>
 <header class="top"><div class="in"><h1>트렌드 계기판</h1><div class="sub">기준 __AT__ · 매일 아침 08:30 갱신 · "탐님 관심" vs "시청자 반응"</div></div></header>
 <div class="wrap"><div class="tiles">__TILES__</div>
 
 <section class="card"><h2><span class="num">1</span>관심 vs 반응 — 무엇을 만들까</h2>
-<div class="desc">가로 = 탐님 관심(★), 세로 = 시청자 반응 지수. 가로선 = 오늘 키워드들의 반응 중간값(__CUT__). 점이나 이름에 마우스를 올리거나 누르면 숫자가 보입니다.</div>
+<div class="desc">가로 = 탐님 관심(★), 세로 = 시청자 반응 지수. 가로선 = 오늘 키워드들의 반응 중간값(__CUT__). 점이나 이름을 누르면(PC는 마우스를 올리면) 옆에 숫자가 나옵니다. 휴대폰은 그래프를 옆으로 밀어 보세요.</div>
 __QUAD__
 <details><summary>반응 지수는 어떻게 계산하나</summary><div class="small">
 0~100. <b>유튜브 영상당 평균 조회</b>(최근 7일, 한국) 50점 + <b>댓글 수</b> 20점 + <b>구글 검색 관심도 변화</b>(최근 7일 vs 이전 7일) 30점.
