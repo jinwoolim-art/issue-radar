@@ -110,7 +110,8 @@ CSS = """
 *{box-sizing:border-box;margin:0}
 body{width:1080px;height:1920px;background:radial-gradient(1200px 900px at 80% 10%,#1d2a3a 0,var(--bg) 60%);color:var(--fg);
  font-family:"Apple SD Gothic Neo","Noto Sans KR",sans-serif;overflow:hidden;position:relative;word-break:keep-all}
-.top{position:absolute;top:120px;left:80px;right:160px;display:flex;align-items:center;gap:18px}
+.top{position:absolute;top:120px;left:80px;right:160px;display:flex;align-items:center;gap:18px;z-index:5}
+.kicker:empty{display:none}
 .kicker{background:var(--accent);color:#08111b;font-weight:800;font-size:38px;padding:10px 26px;border-radius:999px}
 .dots{margin-left:auto;display:flex;gap:10px}.dots i{width:16px;height:16px;border-radius:50%;background:#33404f}.dots i.on{background:var(--fg)}
 .stage{position:absolute;top:250px;left:80px;right:160px;height:770px;display:flex;flex-direction:column;justify-content:center;gap:30px}
@@ -298,7 +299,7 @@ function drawRain(t) {
   }
 }
 // ── 채널 오프닝: 큰 얼굴 두리번 → 찌릿 감지 → 헉! "빅뉴스!!!" → 허둥지둥 자리로 → 콩 ──
-const HOME = [BX + 72, BY + 76.5], MID = [540, 860], BIG = 4.2;
+const HOME = [BX + 72, BY + 76.5], MID = [540, 980], BIG = 4.2;
 const easeInBack = x => { const c = 1.9; return (c + 1) * x * x * x - c * x * x; };
 function introState(t) {
   if (t < 0.9) {
@@ -337,13 +338,13 @@ const LETTERS = (() => {
   chars.forEach((ch, i) => {                         // 큰 글자: BIG NEWS! — 크기·높이 제각각
     if (ch === ' ') { x += 34 * k; return; }
     const sz = Math.max(5, Math.round(sizes[i] * k));
-    out.push({ch, x, y: 340 - 3.5 * sz + (LR() - 0.5) * 80, s: sz, col: LCOL[i % 3], a: 1, at: 0.45 + out.length * 0.03, seed: i * 17});
+    out.push({ch, x, y: MID[1] - 520 - 3.5 * sz + (LR() - 0.5) * 80, s: sz, col: LCOL[i % 3], a: 1, at: 0.45 + out.length * 0.03, seed: i * 17});
     x += sz * 6.2;
   });
   const pool = [...ITXT.replace(/[^A-Z0-9]/g, '')] .concat(['0', '1', '0', '1']);
   for (let i = 0; i < 36; i++) {                     // 작은 글자·0/1: 로봇 둘레에 데이터처럼 흩뿌림
     const ang = LR() * Math.PI * 2, rad = 300 + LR() * 240, sz = 4 + Math.floor(LR() * 7);
-    const xx = Math.min(1020, Math.max(30, 540 + Math.cos(ang) * rad)), yy = Math.min(1480, Math.max(230, 860 + Math.sin(ang) * rad * 1.15));
+    const xx = Math.min(1020, Math.max(30, 540 + Math.cos(ang) * rad)), yy = Math.min(1560, Math.max(250, MID[1] + Math.sin(ang) * rad * 1.15));
     out.push({ch: pool[Math.floor(LR() * pool.length)], x: xx, y: yy, s: sz, col: LCOL[Math.floor(LR() * 3)], a: 0.3 + LR() * 0.6,
               at: 0.45 + LR() * 0.3, seed: 100 + i * 31});
   }
@@ -366,7 +367,7 @@ function drawLetters(t) {
     let x = L.x, y = L.y;
     if (Math.floor(t * 25 + L.seed) % 13 === 0) x += 14;                              // 가끔 옆으로 튐(글리치)
     const cx = x + L.s * 2.5, cy = y + L.s * 3.5;
-    x += (cx - 540) * e * 0.9; y += (cy - 860) * e * 0.9;
+    x += (cx - MID[0]) * e * 0.9; y += (cy - MID[1]) * e * 0.9;
     f.globalAlpha = L.a * (1 - e); f.fillStyle = L.col;
     drawGlyph(L.ch, x, y, u < 0.06 ? Math.round(L.s * 1.3) : L.s, e, L.seed);
   }
@@ -420,6 +421,7 @@ window.render = (t) => {
     el.querySelectorAll('.cnt').forEach(c => c.textContent = countText(c.dataset.to, ease((t - el.dataset.at) / 0.9)));
   });
   words.forEach(w => w.classList.toggle('on', t >= w.dataset.at));
+  const kk = document.querySelector('.kicker'); if (kk) kk.style.visibility = (INTRO && t < INTRO - 0.2) ? 'visible' : 'hidden';
   if (INTRO && t < INTRO) { drawIntro(t); return; }
   document.getElementById('news').style.opacity = 0;
   drawBot(t - INTRO);
@@ -477,12 +479,12 @@ def _caption(text: str) -> str:
 
 
 def _page(sc: dict, i: int, n: int, speech: float, offset: float = 0.0, chirp: float = 0.0,
-          intro: float = 0.0, intro_text: str = "BIG NEWS!", fx_at: float = 0.0) -> str:
+          intro: float = 0.0, intro_text: str = "BIG NEWS!", fx_at: float = 0.0, keyword: str = "") -> str:
     dots = "".join(f'<i class="{"on" if k == i else ""}"></i>' for k in range(n))
     js = (JS.replace("%BOT%", json.dumps(BOT)).replace("%TYPE%", json.dumps(sc["type"])).replace("%MOOD%", json.dumps(sc.get("mood", ""))).replace("%SPEECH%", f"{speech:.3f}")
           .replace("%OFFSET%", f"{offset:.3f}").replace("%CHIRP%", f"{chirp:.3f}").replace("%INTRO%", f"{intro:.3f}").replace("%FXAT%", f"{fx_at:.3f}"))
     return (f"<html><head><meta charset='utf-8'><style>{CSS}</style></head><body>"
-            f'<div class="top"><span class="kicker">{_fmt(sc["kicker"])}</span><span class="dots">{dots}</span></div>'
+            f'<div class="top"><span class="kicker">{_fmt(keyword) if intro else ""}</span><span class="dots">{dots}</span></div>'
             f'<div class="stage">{_body(sc)}</div><canvas id="fx" width="1080" height="1920"></canvas><div class="cap">{_caption(sc["narration"])}</div>'
             f'<div id="bang">!</div><div id="news">{html.escape(intro_text)}</div><canvas id="bot" width="16" height="17"></canvas>'
             f'<div class="tag">샘플 · 자료: 장면표 출처 참조</div><script>{js}</script></body></html>')
@@ -534,7 +536,8 @@ def render(spec_path: str) -> Path:
         pg = b.new_page(viewport={"width": W, "height": H})
         for i, sc in enumerate(scenes):
             speech, dur, offset, chirp, intro, fx_at = durs[i]
-            pg.set_content(_page(sc, i, len(scenes), speech, offset, chirp, intro, spec.get("intro_text", "BIG NEWS!"), fx_at))
+            pg.set_content(_page(sc, i, len(scenes), speech, offset, chirp, intro, spec.get("intro_text", "BIG NEWS!"), fx_at,
+                                 spec.get("keyword") or scenes[0]["kicker"]))   # 오프닝 좌상단 대표 키워드 → 썸네일·저장 목록 구분
             seg = work / f"s{i}.mp4"
             enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-i", "-",
                                     "-i", str(work / f"s{i}.wav"), "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
