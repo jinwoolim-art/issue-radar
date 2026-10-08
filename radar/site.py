@@ -26,7 +26,7 @@ ICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
  stroke-linecap="round" stroke-linejoin="round"/>
 <circle cx="400" cy="150" r="22" fill="#3987e5" stroke="#fff" stroke-width="8"/></svg>"""
 
-HEAD = """<link rel="manifest" href="manifest.webmanifest">
+HEAD = """<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
 <link rel="apple-touch-icon" href="icon-180.png"><link rel="icon" href="icon-192.png">
 <meta name="theme-color" content="#1f2a37"><meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="이슈레이더"><meta name="mobile-web-app-capable" content="yes">
