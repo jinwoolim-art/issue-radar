@@ -89,6 +89,10 @@ def main():
         print(f"→ {out}\n계기판 → {page}")
         site.deploy(force=True)
         return
+    if cmd == "shorts":
+        from . import shorts
+        print("숏폼 샘플 →", shorts.render(sys.argv[2]))
+        return
     if cmd == "deploy":
         site.deploy(force=True)
         return
