@@ -88,7 +88,9 @@ function robotRows(k, o = {}) {        // o: {eyes:'open'|'U'|'blink'|'lookL'|'l
       for (const y of [9, 10, 11]) for (const x of [5, 6, 7, 8, 9, 10]) set(x, y, 'O');
       for (const x of [6, 7, 8, 9]) set(x, 12, 'O');
       for (const x of [6, 7, 8, 9]) set(x, 11, 'T'); set(7, 12, 'T'); set(8, 12, 'T');
-      const ux = o.uvula ? 8 : 7; set(ux, 9, 'U'); set(ux, 10, 'U');
+      if (o.uvula === 'up') { set(7, 9, 'U'); }                                   // 숨 넘어감: 쑥 올라감
+      else if (o.uvula === 'down') { set(7, 9, 'U'); set(7, 10, 'U'); set(7, 11, 'U'); }   // 혀 쪽으로 툭 처짐
+      else { const ux = o.uvula ? 8 : 7; set(ux, 9, 'U'); set(ux, 10, 'U'); }         // 좌우로 떨림
     } else if (o.mouth) { for (const x of [6, 7, 8, 9]) set(x, 9, 'O'); set(7, 8, 'O'); set(8, 8, 'O'); set(7, 10, 'O'); set(8, 10, 'O'); }
   }
   if (o.arms === 'up') { const L = CH[k].arm_shift[0], Rr = CH[k].arm_shift[1];

@@ -139,10 +139,12 @@ const MIDANG = [['prop', 14, 52], ['tv', 102, 44], ['tv', 6, 160], ['prop', 108,
                 ['prop', 34, 80], ['tv', 84, 148]];                          // 딸깍이 물러났을 때 가장자리에 반쯤 걸리는 둘
 function skyBG(c, Wd, Hd, seed) { for (let i = 0; i < Hd; i++) { const t = i / Hd; R(c, 0, i, Wd, 1, `rgb(${10 + t * 22},${20 + t * 30},${64 + t * 74})`); }
   const r = rngS(seed); for (let i = 0; i < Wd * Hd / 400; i++) P(c, Math.floor(r() * Wd), Math.floor(r() * Hd), r() < 0.2 ? '#ffffff' : '#aeb8e8'); }
+function gulp(u) {                                                          // 꼴깍…꼴깍: 두 번 빠르게, 잠깐 쉬고 (숨이 차서 버거운 느낌)
+  const c = u % 1.15; return c < 0.12 ? 'down' : c < 0.26 ? 'up' : c < 0.38 ? 'down' : c < 0.5 ? 'up' : 0; }
 function flockWorld(t, yell) {                                             // 목젖은 19.5초까지만 떨림
   sizeTo(WORLD, 150, 267); w.setTransform(1, 0, 0, 1, 0, 0); skyBG(w, 150, 267, 5);
   for (const [k, x, y] of MIDANG) drawAngel(w, k, x, y, t, x * 0.01, {eyes: 'U', mouth: sing(t, x * 0.002)});
-  const o = yell ? {eyes: 'wide', mouth: 'yell', uvula: t < 19.5 ? Math.floor(t * 15) % 2 : 0, arms: 'up'} : {eyes: 'U', mouth: sing(t, 0.03)};
+  const o = yell ? {eyes: 'wide', mouth: 'yell', uvula: t < 19.5 ? Math.floor(t * 15) % 2 : gulp(t - 19.5), arms: 'up'} : {eyes: 'U', mouth: sing(t, 0.03)};
   drawAngel(w, 'can', 57, 112, t, 0.3, o);
 }
 function foreground(t) { sizeTo(FG, 60, 107); fg.setTransform(1, 0, 0, 1, 0, 0); fg.clearRect(0, 0, 60, 107);
