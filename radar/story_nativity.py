@@ -246,6 +246,24 @@ def _bibik(gain=1.0):
     return np.concatenate([_tone(1500, 1900, 0.07), np.zeros(int(SR * 0.03)), _tone(2300, 2900, 0.09)]) * gain
 
 
+def _gasp(orig: np.ndarray, last=False):
+    """합창단 목소리로 "캑 / 꺽…": 원본의 고함 구간(17.4~18.4초)에서 목소리가 가장 진한 0.08초를 잘라
+    짧게 끊어(음 살짝 올림) 숨이 턱 걸리는 소리로, 마지막은 느리게 늘여(음 낮춤) 힘 빠지는 소리로 쓴다"""
+    a, b = int(17.4 * SR), int(18.4 * SR); hop = int(0.01 * SR); L = int(0.08 * SR)
+    seg = orig[a:b]
+    best = max(range(0, len(seg) - L, hop), key=lambda i: np.mean(seg[i:i + L] ** 2))
+    grain = seg[best:best + L]
+    speed = 0.72 if last else 1.12                                    # 느리게 = 낮고 길게 / 빠르게 = 높고 짧게
+    n = int(L / speed) if not last else int(0.22 * SR)
+    idx = (np.arange(n) * speed) % L                                   # 마지막은 조각을 반복해 늘임
+    out = np.interp(idx, np.arange(L), grain)
+    t = np.arange(n) / SR
+    env = np.minimum(1, t / 0.004) * (np.exp(-t / 0.09) if last else np.minimum(1, (n / SR - t) / 0.012))   # 캑: 딱 끊김 / 꺽: 사그라듦
+    if last:
+        out *= 1 - 0.5 * (t / t[-1])                                      # 숨이 빠지듯 점점 약하게
+    return out * env
+
+
 def _kaek(last=False):
     """목에 걸린 짧고 건조한 "캑" (마지막은 힘 빠지는 "꺽…"). 노이즈 + 내려가는 짧은 음 + 살짝 로봇 질감"""
     rng = np.random.default_rng(4 if last else 3)
@@ -309,7 +327,7 @@ def _soundtrack(work: Path, ref: Path):
     for j, at in enumerate(gulps):
         last = j == len(gulps) - 1
         i0, i1 = int((at - 0.04) * SR), int((at + (0.26 if last else 0.1)) * SR)
-        k = _kaek(last); j0 = int(at * SR)
+        k = _gasp(orig, last); j0 = int(at * SR)
         choir = np.sqrt(np.mean(buf[j0 - int(0.25 * SR):j0] ** 2)) + 1e-6      # 덕킹 전 평소 합창 크기
         env = np.ones(i1 - i0); ramp = int(0.015 * SR); env[:] = 0.35; env[:ramp] = np.linspace(1, 0.35, ramp); env[-ramp:] = np.linspace(0.35, 1, ramp)
         buf[i0:i1] *= env                                                     # 그 순간 합창 약 -9dB
