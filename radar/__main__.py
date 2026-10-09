@@ -95,6 +95,9 @@ def main():
     if cmd == "shorts2":
         from . import shorts_anim
         print("숏폼 샘플(v2 움직임) →", shorts_anim.render(sys.argv[2]))
+    if cmd == "sprites":     # 스토리용 캐릭터 디자인 시트 (픽셀 규칙 확인용)
+        from . import story_pixel
+        print("디자인 시트 →", story_pixel.design_sheet())
     if cmd == "story":       # 스토리 영상: 삐빅 탄생기
         from . import story_nativity
         print("스토리 영상 →", story_nativity.render(sys.argv[2] if len(sys.argv) > 2 else None))
