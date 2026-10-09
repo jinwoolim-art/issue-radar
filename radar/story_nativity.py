@@ -27,8 +27,11 @@ from .story_pixel import PIXEL_JS
 FPS = 30
 REF_END = 27.37
 TOTAL_BODY = 31.0
-CURTAIN = 2.5            # 앞에 붙는 무음 커튼 오프닝 〈고요한 학예회〉
-TOTAL = TOTAL_BODY + CURTAIN
+CURTAIN = 1.5            # 커튼이 닫혀 있는 시간 (무음). 그 뒤 1.5초 동안 열리며 본편이 뒤에서 시작
+OPEN = 1.5               # 커튼이 걷히는 시간
+STRETCH_END, STRETCH = 7.4, 1.3   # 원본 앞부분(0~7.4초, 터지기 전 조용한 부분)만 1.3배로 늘림 → 앞이 급하지 않게
+EXTRA = (STRETCH - 1) * STRETCH_END
+TOTAL = CURTAIN + TOTAL_BODY + EXTRA
 FONT = Path(__file__).resolve().parent.parent / "data" / "fonts" / "Galmuri14.woff2"   # 한글 도트 폰트 (OFL)
 SR = 44100
 BPM = 140
@@ -231,7 +234,8 @@ function renderBody(t) {
 };
 
 // ── 커튼 오프닝 〈고요한 학예회〉 (무음) ──
-const CURTAIN = %CURTAIN%;
+const CURTAIN = %CURTAIN%, OPEN = %OPEN%, SE = %SE%, SK = %SK%;
+const warp = u => u < SE * SK ? u / SK : u - (SK - 1) * SE;                // 늘린 앞부분 → 원본 시각
 const CUR = document.createElement('canvas'); CUR.width = 180; CUR.height = 320; const cu = CUR.getContext('2d');
 let CLOSED = null;
 function pixelText(txt, px, col, shade) {                                   // 도트 폰트 → 글자 가장자리를 칸 단위로 끊어 또렷하게
@@ -240,33 +244,42 @@ function pixelText(txt, px, col, shade) {                                   // �
   const tw = Math.ceil(g.measureText(txt).width), d = g.getImageData(0, 0, 200, px + 8).data;
   return outlined(tw + 1, px + 8, c => { for (let y = 0; y < px + 8; y++) for (let x = 0; x < tw; x++) if (d[(y * 200 + x) * 4 + 3] > 120) { P(c, x + 1, y + 1, shade); P(c, x, y, col); } }, '#3a0810');
 }
+const FOLD = x => { const ph = (x % 30) / 30;                              // 주름 하나 = 30픽셀: 어두운 골 → 밝은 면 → 중간
+  return ph < 0.12 ? '#5e0d1a' : ph < 0.3 ? '#8e1726' : ph < 0.55 ? '#b22334' : ph < 0.7 ? '#cc3443' : ph < 0.88 ? '#b22334' : '#8e1726'; };
 function closedCurtain() {
-  const cv = document.createElement('canvas'); cv.width = 180; cv.height = 320; const c = cv.getContext('2d');
-  const band = ['#5e0d1a', '#8e1726', '#b22334', '#c8303f', '#b22334', '#8e1726'];
-  for (let x = 0; x < 180; x++) R(c, x, 0, 1, 300, band[Math.floor(x / 2) % band.length]);   // 벨벳 주름
-  for (let x = 0; x < 180; x += 3) R(c, x, 296, 2, 4, '#e0a93a');                           // 아래 금색 술
-  E(c, 90, 150, 70, 60, 'rgba(255,236,190,0.07)'); E(c, 90, 150, 48, 40, 'rgba(255,236,190,0.07)');   // 무대 조명 (단계 원)
-  const title = pixelText('고요한 학예회', 14, '#ffd166', '#7a4a10');
-  c.drawImage(title, Math.round(90 - title.width / 2), 140);
-  for (const [sx, sy] of [[44, 128], [134, 134], [52, 170], [128, 168]]) { P(c, sx, sy, '#ffe9a8'); P(c, sx - 1, sy, '#c9a24a'); P(c, sx + 1, sy, '#c9a24a'); P(c, sx, sy - 1, '#c9a24a'); P(c, sx, sy + 1, '#c9a24a'); }   // 금실 별 장식
+  const cv = document.createElement('canvas'); cv.width = 180; cv.height = 300; const c = cv.getContext('2d');
+  for (let x = 0; x < 180; x++) R(c, x, 0, 1, 300, FOLD(x));
+  E(c, 90, 150, 76, 66, 'rgba(255,236,190,0.07)'); E(c, 90, 150, 52, 44, 'rgba(255,236,190,0.07)');   // 무대 조명 (단계 원)
+  c.imageSmoothingEnabled = false;                                              // 제목 2배, 두 줄 (고요한 / 학예회)
+  [['고요한', 112], ['학예회', 150]].forEach(([txt, y]) => { const tt = pixelText(txt, 14, '#ffd166', '#7a4a10'); c.drawImage(tt, Math.round(90 - tt.width), y, tt.width * 2, tt.height * 2); });
+  for (const [sx, sy] of [[16, 116], [164, 120], [24, 176], [156, 172]]) { P(c, sx, sy, '#ffe9a8'); P(c, sx - 1, sy, '#c9a24a'); P(c, sx + 1, sy, '#c9a24a'); P(c, sx, sy - 1, '#c9a24a'); P(c, sx, sy + 1, '#c9a24a'); }
   return cv;
 }
+function half(c, side, d, sway) {                                           // 커튼 반쪽 (치맛단은 1픽셀씩 흔들림)
+  const sx = side < 0 ? 0 : 90, dx = side < 0 ? -d : 90 + d;
+  c.drawImage(CLOSED, sx, 0, 90, 276, dx, 0, 90, 276);
+  for (let y = 276; y < 300; y++) { const off = sway ? Math.round(Math.sin(y * 0.4 + sway) * (y - 276) / 12) : 0; c.drawImage(CLOSED, sx, y, 90, 1, dx + off, y, 90, 1); }
+  for (let x = 0; x < 90; x += 3) R(c, dx + x + (sway ? Math.round(Math.sin(x * 0.3 + sway) * 1) : 0), 300, 2, 4, '#e0a93a');   // 금색 술
+}
 function valance(c) {                                                       // 위쪽 고정 휘장 + 아래 무대 바닥
-  R(c, 0, 0, 180, 22, '#7a1222'); for (let x = 0; x < 180; x += 20) E(c, x + 10, 22, 10, 6, '#7a1222');
-  for (let x = 0; x < 180; x += 20) for (let k = -9; k <= 9; k++) { const y = 22 + Math.round(Math.sqrt(Math.max(0, 81 - k * k)) * 0.6); P(c, x + 10 + k, y, '#e0a93a'); }
+  R(c, 0, 0, 180, 22, '#7a1222'); for (let x = 0; x < 180; x += 30) E(c, x + 15, 22, 15, 7, '#7a1222');
+  for (let x = 0; x < 180; x += 30) for (let k = -14; k <= 14; k++) P(c, x + 15 + k, 22 + Math.round(Math.sqrt(Math.max(0, 196 - k * k)) * 0.5), '#e0a93a');
   R(c, 0, 20, 180, 2, '#e0a93a');
-  R(c, 0, 300, 180, 20, '#5b3a20'); R(c, 0, 300, 180, 1, '#3a2414'); for (let x = 4; x < 180; x += 22) { R(c, x, 302, 5, 2, '#ffd98a'); }
+  R(c, 0, 304, 180, 16, '#5b3a20'); R(c, 0, 304, 180, 1, '#3a2414'); for (let x = 6; x < 180; x += 24) R(c, x, 306, 6, 2, '#ffd98a');
 }
 window.render = (t) => {
-  if (t >= CURTAIN) return renderBody(t - CURTAIN);
   if (!CLOSED) CLOSED = closedCurtain();
+  const u = t - CURTAIN;                                                     // 본편은 커튼이 열리기 시작할 때부터
+  if (u >= 0) renderBody(warp(u)); else { m.setTransform(1, 0, 0, 1, 0, 0); m.fillStyle = '#000'; m.fillRect(0, 0, 1080, 1920); }
+  if (u >= OPEN) return;
   m.setTransform(1, 0, 0, 1, 0, 0); m.filter = 'none'; m.globalCompositeOperation = 'source-over'; m.globalAlpha = 1;
-  if (t > 1.5) renderBody(0); else { m.fillStyle = '#000'; m.fillRect(0, 0, 1080, 1920); }        // 커튼 뒤 = 본편 첫 장면
-  const d = Math.round(100 * ease((t - 1.5) / 1.0));                                                 // 1.5~2.5초 양쪽으로 걷힘
+  const op = ease(u / OPEN);
+  if (u >= 0) { m.fillStyle = `rgba(0,0,0,${0.7 * (1 - op)})`; m.fillRect(0, 0, 1080, 1920); }   // 무대 안은 어둡다가 조명이 켜지듯 밝아짐
+  const d = Math.round(110 * op), sway = u > 0 ? u * 9 : 0;
   cu.setTransform(1, 0, 0, 1, 0, 0); cu.clearRect(0, 0, 180, 320);
-  cu.drawImage(CLOSED, 0, 0, 90, 300, -d, 0, 90, 300); cu.drawImage(CLOSED, 90, 0, 90, 300, 90 + d, 0, 90, 300);
-  valance(cu);
-  camera(CUR, 90, 160, 180); if (d < 30) glow(CUR, 90, 160, 180, 0.18); vignette(0.4);
+  half(cu, -1, d, sway); half(cu, 1, d, sway); valance(cu);
+  const vw = 180 - 34 * op;                                                  // 커튼은 반대로 살짝 다가옴 (줌인)
+  camera(CUR, 90, 160, vw); if (op < 0.3) glow(CUR, 90, 160, vw, 0.18); vignette(0.4);
 };
 """
 
@@ -283,7 +296,7 @@ def _font_b64() -> str:
 
 def _page(env: list) -> str:
     js = (PIXEL_JS.replace("%CHARS%", json.dumps(CHARS)) + STORY_JS.replace("%ENV%", json.dumps([round(v, 3) for v in env]))
-          .replace("%BPM%", str(BPM)).replace("%TECHNO%", str(TECHNO_AT)).replace("%CURTAIN%", str(CURTAIN)))
+          .replace("%BPM%", str(BPM)).replace("%TECHNO%", str(TECHNO_AT)).replace("%CURTAIN%", str(CURTAIN)).replace("%OPEN%", str(OPEN)).replace("%SE%", str(STRETCH_END)).replace("%SK%", str(STRETCH)))
     return (f"<html><head><meta charset='utf-8'><style>*{{margin:0}}body{{width:{W}px;height:{H}px;background:#000;overflow:hidden}}"
             f"canvas{{display:block}}@font-face{{font-family:Galmuri14;src:url(data:font/woff2;base64,{_font_b64()}) format('woff2')}}</style></head><body><canvas id='c' width='{W}' height='{H}'></canvas><script>{js}</script></body></html>")
 
@@ -369,15 +382,23 @@ def _soundtrack(work: Path, ref: Path):
     raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-t", str(REF_END), "-i", str(ref), "-vn", "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"],
                          capture_output=True, check=True).stdout
     orig = np.frombuffer(raw, dtype=np.float32).astype(np.float64)
-    buf = np.zeros(int(SR * TOTAL_BODY)); n = min(orig.size, buf.size)
-    buf[:n] = orig[:n]; fade = int(SR * 0.04); buf[n - fade:n] *= np.linspace(1, 0, fade)
+    se = int(STRETCH_END * SR)
+    slow = subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "f32le", "-ar", str(SR), "-ac", "1", "-i", "-", "-af", f"atempo={1 / STRETCH:.4f}",
+                           "-f", "f32le", "-"], input=orig[:se].astype(np.float32).tobytes(), capture_output=True, check=True).stdout
+    slow = np.frombuffer(slow, dtype=np.float32).astype(np.float64)       # 음높이는 그대로, 속도만 느리게
+    xf = int(0.03 * SR); head = slow.copy(); tail = orig[se:].copy()
+    head[-xf:] *= np.linspace(1, 0, xf); tail[:xf] *= np.linspace(0, 1, xf)
+    body = np.concatenate([head[:-xf], head[-xf:] + tail[:xf], tail[xf:]])
+    buf = np.zeros(int(SR * (TOTAL_BODY + EXTRA))); n = min(body.size, buf.size)
+    buf[:n] = body[:n]; fade = int(SR * 0.04); buf[n - fade:n] *= np.linspace(1, 0, fade)
+    Wt = lambda t: t * STRETCH if t < STRETCH_END else t + EXTRA           # 원본 시각 → 늘린 뒤 시각
     def put(sig, at, g):
         i = int(at * SR); k = min(sig.size, buf.size - i)
         if k > 0: buf[i:i + k] += sig[:k] * g
-    for at in BABY_CHIRPS: put(_bibik(), at, 0.06)                # 아기의 작은 "삐빅"
-    put(_bibik(), 27.55, 0.4)                                       # 마지막 "삐빅!"
-    put(_techno(TOTAL_BODY - TECHNO_AT - 0.2), TECHNO_AT, 0.32)
-    buf[int(30.8 * SR):] = 0
+    for at in BABY_CHIRPS: put(_bibik(), Wt(at), 0.06)            # 아기의 작은 "삐빅"
+    put(_bibik(), Wt(27.55), 0.4)                                       # 마지막 "삐빅!"
+    put(_techno(TOTAL_BODY - TECHNO_AT - 0.2), Wt(TECHNO_AT), 0.32)
+    buf[int(Wt(30.8) * SR):] = 0
     buf = np.concatenate([np.zeros(int(SR * CURTAIN)), buf])           # 커튼 오프닝은 무음
     wav = work / "story.wav"
     with wave.open(str(wav), "wb") as w:
