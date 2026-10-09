@@ -309,11 +309,11 @@ def _soundtrack(work: Path, ref: Path):
     for j, at in enumerate(gulps):
         last = j == len(gulps) - 1
         i0, i1 = int((at - 0.04) * SR), int((at + (0.26 if last else 0.1)) * SR)
+        k = _kaek(last); j0 = int(at * SR)
+        choir = np.sqrt(np.mean(buf[j0 - int(0.25 * SR):j0] ** 2)) + 1e-6      # 덕킹 전 평소 합창 크기
         env = np.ones(i1 - i0); ramp = int(0.015 * SR); env[:] = 0.35; env[:ramp] = np.linspace(1, 0.35, ramp); env[-ramp:] = np.linspace(0.35, 1, ramp)
         buf[i0:i1] *= env                                                     # 그 순간 합창 약 -9dB
-        k = _kaek(last); j0 = int(at * SR)
-        choir = np.sqrt(np.mean(buf[j0:j0 + k.size] ** 2)) + 1e-6
-        gain = 2.0 * choir / (np.sqrt(np.mean(k ** 2)) + 1e-9)               # 합창보다 약 6dB 크게 (측정해서 맞춤)
+        gain = 1.6 * choir / (np.sqrt(np.mean(k ** 2)) + 1e-9)               # 평소 합창보다도 약 4dB 크게 → 확실히 들리게
         put(k, at, gain)
         seg = buf[i0:i1]; buf[i0:i1] = np.tanh(seg * 1.1) / np.tanh(1.1)     # 찢어지지 않게 살짝 눌러 줌
     put(_bibik(), 27.55, 0.4)                                       # 마지막 "삐빅!"
