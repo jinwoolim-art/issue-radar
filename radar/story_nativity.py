@@ -249,14 +249,15 @@ def _bibik(gain=1.0):
 def _kaek(last=False):
     """목에 걸린 짧고 건조한 "캑" (마지막은 힘 빠지는 "꺽…"). 노이즈 + 내려가는 짧은 음 + 살짝 로봇 질감"""
     rng = np.random.default_rng(4 if last else 3)
-    dur = 0.2 if last else 0.06
+    dur = 0.22 if last else 0.09
     t = np.arange(int(SR * dur)) / SR
     noise = rng.standard_normal(t.size)
-    band = np.convolve(noise, np.ones(6) / 6, "same") - np.convolve(noise, np.ones(24) / 24, "same")   # 대략 1~3kHz만
-    f = np.linspace(320, 150 if last else 210, t.size)
-    throat = np.sign(np.sin(2 * np.pi * np.cumsum(f) / SR)) * 0.35
-    env = np.minimum(1, t / 0.003) * np.exp(-t / (0.09 if last else 0.018))
-    return (band * 1.6 + throat) * env
+    band = np.convolve(noise, np.ones(4) / 4, "same") - np.convolve(noise, np.ones(18) / 18, "same")   # 대략 1.5~4kHz (합창 위로 뚫고 나옴)
+    click = np.zeros(t.size); click[:int(0.004 * SR)] = rng.standard_normal(int(0.004 * SR)) * 3     # "ㅋ" 하는 딱딱한 시작
+    f = np.linspace(420, 160 if last else 240, t.size)
+    throat = np.sign(np.sin(2 * np.pi * np.cumsum(f) / SR)) * 0.6
+    env = np.minimum(1, t / 0.002) * np.exp(-t / (0.1 if last else 0.035))
+    return (band * 1.4 + throat + click) * env
 
 
 def _techno(dur):
@@ -308,9 +309,13 @@ def _soundtrack(work: Path, ref: Path):
     for j, at in enumerate(gulps):
         last = j == len(gulps) - 1
         i0, i1 = int((at - 0.04) * SR), int((at + (0.26 if last else 0.1)) * SR)
-        env = np.ones(i1 - i0); ramp = int(0.02 * SR); env[:] = 0.7; env[:ramp] = np.linspace(1, 0.7, ramp); env[-ramp:] = np.linspace(0.7, 1, ramp)
-        buf[i0:i1] *= env
-        put(_kaek(last), at, 0.22)
+        env = np.ones(i1 - i0); ramp = int(0.015 * SR); env[:] = 0.35; env[:ramp] = np.linspace(1, 0.35, ramp); env[-ramp:] = np.linspace(0.35, 1, ramp)
+        buf[i0:i1] *= env                                                     # 그 순간 합창 약 -9dB
+        k = _kaek(last); j0 = int(at * SR)
+        choir = np.sqrt(np.mean(buf[j0:j0 + k.size] ** 2)) + 1e-6
+        gain = 2.0 * choir / (np.sqrt(np.mean(k ** 2)) + 1e-9)               # 합창보다 약 6dB 크게 (측정해서 맞춤)
+        put(k, at, gain)
+        seg = buf[i0:i1]; buf[i0:i1] = np.tanh(seg * 1.1) / np.tanh(1.1)     # 찢어지지 않게 살짝 눌러 줌
     put(_bibik(), 27.55, 0.4)                                       # 마지막 "삐빅!"
     put(_techno(TOTAL - TECHNO_AT - 0.2), TECHNO_AT, 0.32)
     buf[int(30.8 * SR):] = 0
