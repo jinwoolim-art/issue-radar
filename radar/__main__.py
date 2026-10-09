@@ -95,6 +95,9 @@ def main():
     if cmd == "shorts2":
         from . import shorts_anim
         print("숏폼 샘플(v2 움직임) →", shorts_anim.render(sys.argv[2]))
+    if cmd == "story":       # 스토리 영상: 삐빅 탄생기
+        from . import story_nativity
+        print("스토리 영상 →", story_nativity.render())
     if cmd == "publish":     # 원스톱: 장면표 여러 개 → 영상 렌더링 → 팀 사이트 배포 (휴대폰에서 바로 보기)
         from . import shorts_anim, site
         for spec in sys.argv[2:]:

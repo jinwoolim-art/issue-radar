@@ -78,8 +78,10 @@ def _shorts_page():
     vids = sorted((OUT / "shorts").glob("*.mp4"), reverse=True)
     stems = {v.stem for v in vids}
     vids = [v for v in vids if f"{v.stem}-v2" not in stems]      # v2(움직이는 버전)가 있으면 v1은 숨김
-    is_genre = lambda v: "_genre-" in v.stem                          # 장르 테스트는 맨 위에
-    vids = [v for v in vids if is_genre(v)] + [v for v in vids if not is_genre(v)]
+    is_genre = lambda v: "_genre-" in v.stem
+    is_story = lambda v: "_story-" in v.stem
+    vids = ([v for v in vids if is_story(v)] + [v for v in vids if is_genre(v)]      # 스토리 → 장르 테스트 → AI 채널 순
+            + [v for v in vids if not is_genre(v) and not is_story(v)])
     shutil.rmtree(SITE / "shorts", ignore_errors=True)                 # 숨긴 v1 파일이 사이트에 남지 않게
     (SITE / "shorts").mkdir(exist_ok=True)
     cards = []
@@ -91,7 +93,7 @@ def _shorts_page():
         title = meta.get("title", v.stem) + (" — v2 캐릭터·움직임" if v2 else "")
         src = "".join(f"<li>{s}</li>" for s in meta.get("sources", []))
         cards.append(f'''<article class="v"><video src="shorts/{v.name}" controls playsinline preload="metadata"></video>
-<div class="t"><b>{k}. {title}</b>{' <span style="background:#ffd166;color:#1a1300;border-radius:6px;padding:0 6px;font-size:12px">장르 테스트</span>' if is_genre(v) else ''}<div class="m">{meta.get("line", "")} · {v.stem[:10]} · {"v2: 레이더 로봇 + 형광펜·카운트업" if v2 else "v1: 정지 카드 + 맥 음성"}</div>
+<div class="t"><b>{k}. {title}</b>{' <span style="background:#ffd166;color:#1a1300;border-radius:6px;padding:0 6px;font-size:12px">장르 테스트</span>' if is_genre(v) else ''}{' <span style="background:#ff8fb1;color:#2a0a14;border-radius:6px;padding:0 6px;font-size:12px">스토리</span>' if is_story(v) else ''}<div class="m">{meta.get("line", "")} · {v.stem[:10]} · {"v2: 레이더 로봇 + 형광펜·카운트업" if v2 else "v1: 정지 카드 + 맥 음성"}</div>
 <ul class="m">{src}</ul></div></article>''')
     page = f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>샘플 영상</title><style>
