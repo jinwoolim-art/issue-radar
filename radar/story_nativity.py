@@ -176,7 +176,7 @@ function panWorld(t) {
   else if (t > 27.42 && t < 27.72) o = {eyes: 'wink'};
   else if (t > 27.3) o = {eyes: 'open'};
   else o = {eyes: 'U', mouth: sing(t, 0.05)};
-  drawAngel(w, 'ai', BIB[0] + (dance ? (beat % 2 ? 3 : -3) : 0), BIB[1] - (dance && bp < 0.3 ? 3 : 0), t, 0.4, o);
+  if (!dance) drawAngel(w, 'ai', BIB[0], BIB[1], t, 0.4, o);            // 댄스 때 삐빅은 앞 층에서 따로 크게
 }
 
 window.render = (t) => {
@@ -195,23 +195,28 @@ window.render = (t) => {
   } else if (t < 17.47) {                                                   // 5~6. 무리 안: 앞쪽이 흐렸다가 초점
     flockWorld(t, false); const vw = 120 - 8 * clamp01((t - 13.33) / 4.1);
     camera(WORLD, 75, 133, vw); glow(WORLD, 75, 133, vw, 0.22);
-    const fp = (t - 13.33) / 1.17; if (fp < 1.4) { foreground(t); camera(FG, 30, 53.5, 60, 1 - clamp01((fp - 1) / 0.4), 14 * (1 - ease(fp))); }
     vignette(0.5);
   } else if (t < 21.13) {                                                   // 7. 딸깍 초근접 → 줌으로 물러남 (목젖 떨림)
-    flockWorld(t, true); const p = easeOut((t - 17.95) / 0.45), vw = 28 + (96 - 28) * p - 6 * clamp01((t - 18.4) / 2.7);   // 0.5초 초근접 유지 후 물러남
-    camera(WORLD, 75, 128 + 5 * p, vw); glow(WORLD, 75, 128, vw, 0.2); vignette(0.5);
+    flockWorld(t, true); const p = easeOut((t - 17.95) / 0.5), vw = 7 + (96 - 7) * p - 6 * clamp01((t - 18.45) / 2.7);   // 입안(목젖) 초근접 0.5초 → 물러남
+    const by = 126 + bob(t, 0.3), cx = 74.5 + 0.5 * p, cy = 128.5 + (by - 128.5) * p;                 // 입 → 딸깍 몸 중심으로 옮겨 가서 정중앙
+    camera(WORLD, cx, cy, vw); glow(WORLD, cx, cy, vw, 0.2); vignette(0.5);
   } else if (t < 24.9) {                                                    // 8. 하늘 가득, 천천히 다가감
     packedWorld(t); const vw = 180 - 14 * clamp01((t - 21.13) / 3.77);
     camera(WORLD, 90, 160, vw); glow(WORLD, 90, 160, vw, 0.3); vignette(0.5);
   } else if (t < 30.8) {                                                    // 9. 팬 → 삐빅 크게 → 윙크 → 삐빅! → 테크노 댄스
     panWorld(t);
     let cx, vw;
-    if (t < 27.2) { cx = 50 + (BIB[0] + 16 - 50) * ease((t - 24.9) / 2.3); vw = 100; }
+    if (t < 27.2) { cx = 175 + (BIB[0] + 17 - 175) * ease((t - 24.9) / 2.3); vw = 100; }   // 이동 거리를 줄여 천천히
     else if (t < TECHNO) { cx = BIB[0] + 17; vw = 100 - 70 * easeOut((t - 27.2) / 0.25); }
-    else { cx = BIB[0] + 17; vw = 30 + 80 * easeOut((t - TECHNO) / 0.25); }
+    else { cx = BIB[0] + 17; vw = 110; }                                    // 뒤 층: 크루가 작게 보이도록 넓게
     const cy = BIB[1] + 14;
     camera(WORLD, cx, cy, vw); glow(WORLD, cx, cy, vw, t >= TECHNO ? 0.35 : 0.22);
-    if (t < 25.9) { const fp = (t - 24.9) / 0.9; foreground(t); camera(FG, 30, 53.5, 60, 1 - clamp01((fp - 0.8) / 0.3), 12 * (1 - ease(fp))); }
+    if (t >= TECHNO) {                                                       // 앞 층: 삐빅은 계속 크게 (클로즈업 유지)
+      const beat = Math.floor((t - TECHNO) / BEAT), bp = ((t - TECHNO) / BEAT) % 1;
+      sizeTo(FG, 40, 71); fg.setTransform(1, 0, 0, 1, 0, 0); fg.clearRect(0, 0, 40, 71);
+      drawAngel(fg, 'ai', 2 + (beat % 2 ? 2 : -2), 21 - (bp < 0.3 ? 2 : 0), t, 0.4, {eyes: 'open', mouth: true, arms: beat % 2 === 0 ? 'up' : null});
+      camera(FG, 20, 35.5, 30);
+    }
     if (t >= TECHNO && Math.floor((t - TECHNO) / BEAT) % 2 === 0 && ((t - TECHNO) / BEAT) % 1 < 0.15) { m.fillStyle = 'rgba(255,255,255,0.08)'; m.fillRect(0, 0, 1080, 1920); }
     vignette(0.45);
   }
