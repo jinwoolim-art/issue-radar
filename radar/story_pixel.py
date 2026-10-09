@@ -175,6 +175,77 @@ function stable() {
   });
 }
 
+// ── 배경 (덜 소박하게: 돌 기초·큰 지붕·창문·화환·정원) ──
+const QMARK = [".yyy.", "y...y", "...y.", "..y..", "..y..", ".....", "..y.."];
+function qmark(c, x, y, col = '#ffe28a') { S(c, QMARK, {y: col}, x, y); }
+function pine(c, x, g, h) {                                  // 픽셀 전나무 (층층)
+  R(c, x - 1, g - 4, 3, 4, '#3a2414');
+  const layers = Math.max(3, Math.round(h / 7));
+  for (let i = 0; i < layers; i++) { const w = Math.round((layers - i) * h / layers * 0.55) + 2, top = g - 4 - Math.round((i + 1) * h / layers);
+    G(c, [[x - w, top + Math.round(h / layers) + 2], [x + 0.5, top - 2], [x + w + 1, top + Math.round(h / layers) + 2]], i % 2 ? '#1f5a3e' : '#174a33'); }
+}
+function bush(c, x, g, w) { E(c, x, g - 3, w, 4.5, '#1d5a3a'); E(c, x - w / 2, g - 4, w / 2, 4, '#246b45'); P(c, x + 1, g - 6, '#c0392b'); P(c, x - 3, g - 4, '#c0392b'); }
+function lamp(c, x, g) { R(c, x, g - 14, 1, 14, '#2a1c10'); R(c, x - 1, g - 17, 3, 3, '#ffd98a'); P(c, x, g - 18, '#2a1c10'); }
+function niceStable(c, x, g) {                               // 바깥에서 본 마구간 (폭 96)
+  const W = 96, H = 44, L = x, T = g - H;
+  R(c, L + 4, g - 7, W - 8, 7, '#6d7280');                    // 돌 기초
+  for (let r = 0; r < 2; r++) for (let i = 0; i < 12; i++) R(c, L + 5 + i * 7 + (r % 2) * 3, g - 7 + r * 3 + 1, 6, 2, r % 2 ? '#8a8f9c' : '#7c818e');
+  R(c, L + 8, T + 14, W - 16, H - 21, '#7a4a2a');              // 벽
+  for (let i = 0; i < 10; i++) R(c, L + 8 + i * 8, T + 14, 1, H - 21, '#5e3820');
+  G(c, [[L, T + 16], [L + W / 2, T - 10], [L + W, T + 16]], '#5a2e22');            // 큰 지붕
+  for (let r = 0; r < 6; r++) { const yy = T - 6 + r * 4, half = 6 + r * 7;
+    for (let i = -half; i < half; i += 6) R(c, L + W / 2 + i + (r % 2) * 3, yy, 5, 1, '#6e3a2b'); }
+  R(c, L + W - 26, T - 6, 6, 12, '#6d7280'); R(c, L + W - 27, T - 8, 8, 2, '#5a5f6b');  // 굴뚝
+  E(c, L + W / 2, T + 4, 5, 5, '#ffcf6b'); R(c, L + W / 2, T, 1, 9, '#5e3820'); R(c, L + W / 2 - 4, T + 4, 9, 1, '#5e3820');   // 박공 창
+  for (const wx of [L + 14, L + W - 26]) { R(c, wx, T + 20, 12, 10, '#ffcf6b'); R(c, wx + 5, T + 20, 1, 10, '#5e3820'); R(c, wx, T + 25, 12, 1, '#5e3820'); R(c, wx - 1, T + 30, 14, 2, '#4a2a18'); }
+  R(c, L + W / 2 - 10, T + 18, 20, H - 25, '#ffd98a');         // 큰 문 (열려서 빛)
+  R(c, L + W / 2 - 11, T + 17, 22, 1, '#4a2a18'); R(c, L + W / 2 - 11, T + 17, 1, H - 24, '#4a2a18'); R(c, L + W / 2 + 10, T + 17, 1, H - 24, '#4a2a18');
+  R(c, L + W / 2 - 4, T + 26, 8, H - 33, '#e8b060');
+  E(c, L + W / 2, T + 11, 4, 4, '#2f7d4a'); E(c, L + W / 2, T + 11, 2, 2, '#7a4a2a'); P(c, L + W / 2, T + 15, '#d63a3a');       // 화환
+  lamp(c, L + W / 2 - 15, g); lamp(c, L + W / 2 + 15, g);
+}
+function exteriorScene(c, w, h) {                            // 바깥 전체 구도 (밤 정원)
+  for (let i = 0; i < h; i++) { const t = i / h; R(c, 0, i, w, 1, `rgb(${8 + t * 34},${12 + t * 44},${40 + t * 90})`); }
+  for (let i = 0; i < 70; i++) { const sx = (i * 47) % w, sy = (i * 31) % Math.floor(h * 0.6); P(c, sx, sy, i % 5 ? '#c8d0ff' : '#ffffff'); }
+  const sx = Math.floor(w / 2) - 4; S(c, STAR, {y: '#ffd166'}, sx, Math.floor(h * 0.30));
+  G(c, [[0, h - 46], [w * 0.3, h - 54], [w * 0.65, h - 48], [w, h - 56], [w, h], [0, h]], '#16224c');
+  G(c, [[0, h - 26], [w * 0.4, h - 30], [w, h - 24], [w, h], [0, h]], '#0f1c1c');
+  pine(c, 10, h - 26, 40); pine(c, 26, h - 24, 30); pine(c, w - 14, h - 24, 44); pine(c, w - 30, h - 26, 28);
+  niceStable(c, Math.floor(w / 2) - 48, h - 22);
+  G(c, [[w / 2 - 8, h - 22], [w / 2 + 8, h - 22], [w / 2 + 16, h], [w / 2 - 16, h]], '#8a7a5a');        // 길
+  for (const fx of [36, 44, 52, w - 54, w - 46, w - 38]) R(c, fx, h - 26, 2, 7, '#3a2414'); R(c, 34, h - 23, 21, 1, '#3a2414'); R(c, w - 56, h - 23, 21, 1, '#3a2414');
+  bush(c, 40, h - 14, 7); bush(c, w - 42, h - 14, 7); bush(c, w / 2 - 30, h - 6, 5); bush(c, w / 2 + 30, h - 6, 5);
+}
+function interiorScene(c, w, h, baby = {}) {                 // 안 전체 구도 (인물 배치 포함)
+  R(c, 0, 0, w, h, '#4e3119');
+  for (let i = 0; i < w; i += 10) { R(c, i, 0, 10, h, (i / 10) % 2 ? '#5b3a20' : '#4e3119'); R(c, i, 0, 1, h, '#3a2412'); }
+  for (const px of [18, w - 20]) R(c, px, 0, 5, h, '#3a2414');                  // 기둥
+  R(c, 0, 34, w, 5, '#3a2414'); for (let i = 4; i < w; i += 9) { E(c, i, 40, 3, 2, '#2f7d4a'); if (i % 18 === 4) P(c, i, 41, '#d63a3a'); }   // 들보 + 초록 장식
+  const ax = Math.floor(w / 2) - 16; R(c, ax, 46, 32, 28, '#0e1a40'); E(c, ax + 16, 46, 16, 9, '#0e1a40');      // 아치 창
+  for (let i = 0; i < 9; i++) P(c, ax + 3 + (i * 11) % 27, 42 + (i * 7) % 28, '#dfe6ff'); R(c, ax + 15, 38, 2, 36, '#3a2414'); R(c, ax, 60, 32, 2, '#3a2414');
+  R(c, ax - 2, 74, 36, 3, '#3a2414');
+  S(c, STAR, {y: '#ffd166'}, Math.floor(w / 2) - 4, 22); R(c, Math.floor(w / 2), 0, 1, 22, '#2a1a0c');
+  for (const lx of [20, w - 18]) { R(c, lx - 1, 52, 4, 5, '#ffd98a'); R(c, lx - 2, 50, 6, 2, '#2a1c10'); }      // 랜턴
+  R(c, 0, h - 52, w, 52, '#8f6a2c'); for (let i = 0; i < 60; i++) R(c, (i * 37) % w, h - 50 + (i * 13) % 48, 3, 1, '#c99b45');
+  for (const [bx, by] of [[2, h - 70], [2, h - 58], [16, h - 58], [w - 30, h - 64], [w - 18, h - 64]]) { R(c, bx, by, 14, 10, '#c9a24a'); R(c, bx, by + 4, 14, 1, '#a8823a'); R(c, bx + 6, by, 1, 10, '#a8823a'); }   // 건초 더미
+  const cx = Math.floor(w / 2);
+  c.drawImage(man({...SHEPA}), cx + 50, h - 100); c.drawImage(man({...SHEPB}), cx + 64, h - 96);
+  c.drawImage(man({...JOSEPH}), cx + 26, h - 98);
+  c.drawImage(manger(baby), cx - 31, h - 60);
+  if (baby.q) { qmark(c, cx + 9, h - 72); qmark(c, cx + 16, h - 78, '#f4f6ff'); }
+  c.drawImage(mary({}), cx - 92, h - 66); c.drawImage(lamb(), cx - 52, h - 22);
+}
+function sceneSheet() {
+  const A = document.createElement('canvas'); A.width = 180; A.height = 214; interiorScene(A.getContext('2d'), 180, 214, {eyes: 'lookL', q: true});
+  const B = document.createElement('canvas'); B.width = 180; B.height = 214; exteriorScene(B.getContext('2d'), 180, 214);
+  const Z = 4, out = document.getElementById('c'); out.width = (180 * 2 + 12) * Z; out.height = 214 * Z + 60; const o = out.getContext('2d');
+  o.fillStyle = '#16182a'; o.fillRect(0, 0, out.width, out.height); o.imageSmoothingEnabled = false;
+  o.drawImage(A, 0, 0, 180 * Z, 214 * Z); o.drawImage(B, (180 + 12) * Z, 0, 180 * Z, 214 * Z);
+  o.font = '600 26px "Apple SD Gothic Neo", sans-serif'; o.textAlign = 'center'; o.fillStyle = '#e8eaf2';
+  o.fillText('마구간 안 · 전체 구도 (아기 삐빅 "뭐지?")', 90 * Z, 214 * Z + 40); o.fillText('바깥 · 정원이 있는 마구간', (180 + 12 + 90) * Z, 214 * Z + 40);
+  return [out.width, out.height];
+}
+
 // ── 디자인 시트 ──
 function designSheet() {
   const SW = 412, SH = 236, sh = document.createElement('canvas'); sh.width = SW; sh.height = SH; const c = sh.getContext('2d');
@@ -211,6 +282,20 @@ def _sheet_page() -> str:
     js = PIXEL_JS.replace("%CHARS%", json.dumps(CHARS))
     return ("<html><head><meta charset='utf-8'><style>*{margin:0}body{background:#16182a}canvas{display:block}</style></head>"
             f"<body><canvas id='c'></canvas><script>{js}</script></body></html>")
+
+
+def scene_sheet() -> Path:
+    from playwright.sync_api import sync_playwright
+    out = OUT.parent / "story_scene_sheet.png"
+    with sync_playwright() as p:
+        b = p.chromium.launch(); pg = b.new_page(viewport={"width": 1600, "height": 1000})
+        pg.on("pageerror", lambda e: print("pageerror:", e))
+        pg.set_content(_sheet_page())
+        w, h = pg.evaluate("sceneSheet()")
+        pg.set_viewport_size({"width": int(w), "height": int(h)})
+        pg.locator("#c").screenshot(path=str(out))
+        b.close()
+    return out
 
 
 def design_sheet() -> Path:
