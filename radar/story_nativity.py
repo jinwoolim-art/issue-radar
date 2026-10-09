@@ -246,6 +246,19 @@ def _bibik(gain=1.0):
     return np.concatenate([_tone(1500, 1900, 0.07), np.zeros(int(SR * 0.03)), _tone(2300, 2900, 0.09)]) * gain
 
 
+def _kaek(last=False):
+    """목에 걸린 짧고 건조한 "캑" (마지막은 힘 빠지는 "꺽…"). 노이즈 + 내려가는 짧은 음 + 살짝 로봇 질감"""
+    rng = np.random.default_rng(4 if last else 3)
+    dur = 0.2 if last else 0.06
+    t = np.arange(int(SR * dur)) / SR
+    noise = rng.standard_normal(t.size)
+    band = np.convolve(noise, np.ones(6) / 6, "same") - np.convolve(noise, np.ones(24) / 24, "same")   # 대략 1~3kHz만
+    f = np.linspace(320, 150 if last else 210, t.size)
+    throat = np.sign(np.sin(2 * np.pi * np.cumsum(f) / SR)) * 0.35
+    env = np.minimum(1, t / 0.003) * np.exp(-t / (0.09 if last else 0.018))
+    return (band * 1.6 + throat) * env
+
+
 def _techno(dur):
     """직접 합성한 테크노 (140BPM): 킥 · 오프비트 하이햇 · 쏘우 베이스 아르페지오 · 스탭 화음"""
     rng = np.random.default_rng(9)
@@ -290,6 +303,14 @@ def _soundtrack(work: Path, ref: Path):
         i = int(at * SR); k = min(sig.size, buf.size - i)
         if k > 0: buf[i:i + k] += sig[:k] * g
     for at in BABY_CHIRPS: put(_bibik(), at, 0.06)                # 아기의 작은 "삐빅"
+    # 딸깍 목젖 꼴깍 → "캑캑 … 캑 꺽…": 그 순간만 합창을 3dB 눌러 틈을 만든다
+    gulps = [(19.5 + k * 1.15 + off) for k in range(3) for off in (0.0, 0.26) if 19.5 + k * 1.15 + off < 21.05]
+    for j, at in enumerate(gulps):
+        last = j == len(gulps) - 1
+        i0, i1 = int((at - 0.04) * SR), int((at + (0.26 if last else 0.1)) * SR)
+        env = np.ones(i1 - i0); ramp = int(0.02 * SR); env[:] = 0.7; env[:ramp] = np.linspace(1, 0.7, ramp); env[-ramp:] = np.linspace(0.7, 1, ramp)
+        buf[i0:i1] *= env
+        put(_kaek(last), at, 0.22)
     put(_bibik(), 27.55, 0.4)                                       # 마지막 "삐빅!"
     put(_techno(TOTAL - TECHNO_AT - 0.2), TECHNO_AT, 0.32)
     buf[int(30.8 * SR):] = 0
