@@ -26,7 +26,10 @@ from .story_pixel import PIXEL_JS
 
 FPS = 30
 REF_END = 27.37
-TOTAL = 31.0
+TOTAL_BODY = 31.0
+CURTAIN = 2.5            # 앞에 붙는 무음 커튼 오프닝 〈고요한 학예회〉
+TOTAL = TOTAL_BODY + CURTAIN
+FONT = Path(__file__).resolve().parent.parent / "data" / "fonts" / "Galmuri14.woff2"   # 한글 도트 폰트 (OFL)
 SR = 44100
 BPM = 140
 TECHNO_AT = 27.7
@@ -144,7 +147,8 @@ function gulp(u) {                                                          // �
 function flockWorld(t, yell) {                                             // 목젖은 19.5초까지만 떨림
   sizeTo(WORLD, 150, 267); w.setTransform(1, 0, 0, 1, 0, 0); skyBG(w, 150, 267, 5);
   for (const [k, x, y] of MIDANG) drawAngel(w, k, x, y, t, x * 0.01, {eyes: 'U', mouth: sing(t, x * 0.002)});
-  const o = yell ? {eyes: 'wide', mouth: 'yell', uvula: t < 19.5 ? Math.floor(t * 15) % 2 : gulp(t - 19.5), arms: 'up'} : {eyes: 'U', mouth: sing(t, 0.03)};
+  let o = yell ? {eyes: 'wide', mouth: 'yell', uvula: Math.floor(t * 15) % 2, arms: 'up'} : {eyes: 'U', mouth: sing(t, 0.03)};
+  if (yell && t >= 19.5) { o.mouth = Math.floor((t - 19.5) / 0.45) % 2 === 0; delete o.uvula; }   // 목젖은 사라지고 천천히 뻐끔뻐끔
   drawAngel(w, 'can', 57, 112, t, 0.3, o);
 }
 function foreground(t) { sizeTo(FG, 60, 107); fg.setTransform(1, 0, 0, 1, 0, 0); fg.clearRect(0, 0, 60, 107);
@@ -182,7 +186,7 @@ function panWorld(t) {
   if (!dance) drawAngel(w, 'ai', BIB[0], BIB[1], t, 0.4, o);            // 댄스 때 삐빅은 앞 층에서 따로 크게
 }
 
-window.render = (t) => {
+function renderBody(t) {
   m.setTransform(1, 0, 0, 1, 0, 0); m.filter = 'none'; m.globalCompositeOperation = 'source-over'; m.globalAlpha = 1;
   m.fillStyle = '#000'; m.fillRect(0, 0, 1080, 1920);
   if (t < 8.0) {                                                            // 1. 끊김 없는 줌아웃 (아기 → 전체)
@@ -225,14 +229,63 @@ window.render = (t) => {
     vignette(0.45);
   }
 };
+
+// ── 커튼 오프닝 〈고요한 학예회〉 (무음) ──
+const CURTAIN = %CURTAIN%;
+const CUR = document.createElement('canvas'); CUR.width = 180; CUR.height = 320; const cu = CUR.getContext('2d');
+let CLOSED = null;
+function pixelText(txt, px, col, shade) {                                   // 도트 폰트 → 글자 가장자리를 칸 단위로 끊어 또렷하게
+  const tc = document.createElement('canvas'); tc.width = 200; tc.height = px + 8; const g = tc.getContext('2d');
+  g.font = `${px}px Galmuri14`; g.textBaseline = 'top'; g.fillStyle = '#fff'; g.fillText(txt, 0, 2);
+  const tw = Math.ceil(g.measureText(txt).width), d = g.getImageData(0, 0, 200, px + 8).data;
+  return outlined(tw + 1, px + 8, c => { for (let y = 0; y < px + 8; y++) for (let x = 0; x < tw; x++) if (d[(y * 200 + x) * 4 + 3] > 120) { P(c, x + 1, y + 1, shade); P(c, x, y, col); } }, '#3a0810');
+}
+function closedCurtain() {
+  const cv = document.createElement('canvas'); cv.width = 180; cv.height = 320; const c = cv.getContext('2d');
+  const band = ['#5e0d1a', '#8e1726', '#b22334', '#c8303f', '#b22334', '#8e1726'];
+  for (let x = 0; x < 180; x++) R(c, x, 0, 1, 300, band[Math.floor(x / 2) % band.length]);   // 벨벳 주름
+  for (let x = 0; x < 180; x += 3) R(c, x, 296, 2, 4, '#e0a93a');                           // 아래 금색 술
+  E(c, 90, 150, 70, 60, 'rgba(255,236,190,0.07)'); E(c, 90, 150, 48, 40, 'rgba(255,236,190,0.07)');   // 무대 조명 (단계 원)
+  const title = pixelText('고요한 학예회', 14, '#ffd166', '#7a4a10');
+  c.drawImage(title, Math.round(90 - title.width / 2), 140);
+  for (const [sx, sy] of [[44, 128], [134, 134], [52, 170], [128, 168]]) { P(c, sx, sy, '#ffe9a8'); P(c, sx - 1, sy, '#c9a24a'); P(c, sx + 1, sy, '#c9a24a'); P(c, sx, sy - 1, '#c9a24a'); P(c, sx, sy + 1, '#c9a24a'); }   // 금실 별 장식
+  return cv;
+}
+function valance(c) {                                                       // 위쪽 고정 휘장 + 아래 무대 바닥
+  R(c, 0, 0, 180, 22, '#7a1222'); for (let x = 0; x < 180; x += 20) E(c, x + 10, 22, 10, 6, '#7a1222');
+  for (let x = 0; x < 180; x += 20) for (let k = -9; k <= 9; k++) { const y = 22 + Math.round(Math.sqrt(Math.max(0, 81 - k * k)) * 0.6); P(c, x + 10 + k, y, '#e0a93a'); }
+  R(c, 0, 20, 180, 2, '#e0a93a');
+  R(c, 0, 300, 180, 20, '#5b3a20'); R(c, 0, 300, 180, 1, '#3a2414'); for (let x = 4; x < 180; x += 22) { R(c, x, 302, 5, 2, '#ffd98a'); }
+}
+window.render = (t) => {
+  if (t >= CURTAIN) return renderBody(t - CURTAIN);
+  if (!CLOSED) CLOSED = closedCurtain();
+  m.setTransform(1, 0, 0, 1, 0, 0); m.filter = 'none'; m.globalCompositeOperation = 'source-over'; m.globalAlpha = 1;
+  if (t > 1.5) renderBody(0); else { m.fillStyle = '#000'; m.fillRect(0, 0, 1080, 1920); }        // 커튼 뒤 = 본편 첫 장면
+  const d = Math.round(100 * ease((t - 1.5) / 1.0));                                                 // 1.5~2.5초 양쪽으로 걷힘
+  cu.setTransform(1, 0, 0, 1, 0, 0); cu.clearRect(0, 0, 180, 320);
+  cu.drawImage(CLOSED, 0, 0, 90, 300, -d, 0, 90, 300); cu.drawImage(CLOSED, 90, 0, 90, 300, 90 + d, 0, 90, 300);
+  valance(cu);
+  camera(CUR, 90, 160, 180); if (d < 30) glow(CUR, 90, 160, 180, 0.18); vignette(0.4);
+};
 """
+
+
+def _font_b64() -> str:
+    """한글 도트 폰트 갈무리(OFL-1.1). 처음 한 번 받아 data/fonts에 둔다 (저장소에는 올리지 않음)"""
+    import base64
+    import urllib.request
+    if not FONT.exists():
+        FONT.parent.mkdir(parents=True, exist_ok=True)
+        FONT.write_bytes(urllib.request.urlopen("https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/Galmuri14.woff2", timeout=30).read())
+    return base64.b64encode(FONT.read_bytes()).decode()
 
 
 def _page(env: list) -> str:
     js = (PIXEL_JS.replace("%CHARS%", json.dumps(CHARS)) + STORY_JS.replace("%ENV%", json.dumps([round(v, 3) for v in env]))
-          .replace("%BPM%", str(BPM)).replace("%TECHNO%", str(TECHNO_AT)))
+          .replace("%BPM%", str(BPM)).replace("%TECHNO%", str(TECHNO_AT)).replace("%CURTAIN%", str(CURTAIN)))
     return (f"<html><head><meta charset='utf-8'><style>*{{margin:0}}body{{width:{W}px;height:{H}px;background:#000;overflow:hidden}}"
-            f"canvas{{display:block}}</style></head><body><canvas id='c' width='{W}' height='{H}'></canvas><script>{js}</script></body></html>")
+            f"canvas{{display:block}}@font-face{{font-family:Galmuri14;src:url(data:font/woff2;base64,{_font_b64()}) format('woff2')}}</style></head><body><canvas id='c' width='{W}' height='{H}'></canvas><script>{js}</script></body></html>")
 
 
 # ── 소리 ──
@@ -309,34 +362,23 @@ def _envelope(orig: np.ndarray) -> list:
     sm = np.copy(env)
     for i in range(1, len(sm)):                                  # 빠르게 열리고 천천히 닫히게
         sm[i] = env[i] if env[i] > sm[i - 1] else sm[i - 1] * 0.75 + env[i] * 0.25
-    return list(sm) + [0.0] * int((TOTAL - REF_END) * FPS + 2)
+    return list(sm) + [0.0] * int((TOTAL_BODY - REF_END) * FPS + 2)
 
 
 def _soundtrack(work: Path, ref: Path):
     raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-t", str(REF_END), "-i", str(ref), "-vn", "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"],
                          capture_output=True, check=True).stdout
     orig = np.frombuffer(raw, dtype=np.float32).astype(np.float64)
-    buf = np.zeros(int(SR * TOTAL)); n = min(orig.size, buf.size)
+    buf = np.zeros(int(SR * TOTAL_BODY)); n = min(orig.size, buf.size)
     buf[:n] = orig[:n]; fade = int(SR * 0.04); buf[n - fade:n] *= np.linspace(1, 0, fade)
     def put(sig, at, g):
         i = int(at * SR); k = min(sig.size, buf.size - i)
         if k > 0: buf[i:i + k] += sig[:k] * g
     for at in BABY_CHIRPS: put(_bibik(), at, 0.06)                # 아기의 작은 "삐빅"
-    # 딸깍 목젖 꼴깍 → "캑캑 … 캑 꺽…": 그 순간만 합창을 3dB 눌러 틈을 만든다
-    gulps = [(19.5 + k * 1.15 + off) for k in range(3) for off in (0.0, 0.26) if 19.5 + k * 1.15 + off < 21.05]
-    for j, at in enumerate(gulps):
-        last = j == len(gulps) - 1
-        i0, i1 = int((at - 0.04) * SR), int((at + (0.26 if last else 0.1)) * SR)
-        k = _gasp(orig, last); j0 = int(at * SR)
-        choir = np.sqrt(np.mean(buf[j0 - int(0.25 * SR):j0] ** 2)) + 1e-6      # 덕킹 전 평소 합창 크기
-        env = np.ones(i1 - i0); ramp = int(0.015 * SR); env[:] = 0.35; env[:ramp] = np.linspace(1, 0.35, ramp); env[-ramp:] = np.linspace(0.35, 1, ramp)
-        buf[i0:i1] *= env                                                     # 그 순간 합창 약 -9dB
-        gain = 1.6 * choir / (np.sqrt(np.mean(k ** 2)) + 1e-9)               # 평소 합창보다도 약 4dB 크게 → 확실히 들리게
-        put(k, at, gain)
-        seg = buf[i0:i1]; buf[i0:i1] = np.tanh(seg * 1.1) / np.tanh(1.1)     # 찢어지지 않게 살짝 눌러 줌
     put(_bibik(), 27.55, 0.4)                                       # 마지막 "삐빅!"
-    put(_techno(TOTAL - TECHNO_AT - 0.2), TECHNO_AT, 0.32)
+    put(_techno(TOTAL_BODY - TECHNO_AT - 0.2), TECHNO_AT, 0.32)
     buf[int(30.8 * SR):] = 0
+    buf = np.concatenate([np.zeros(int(SR * CURTAIN)), buf])           # 커튼 오프닝은 무음
     wav = work / "story.wav"
     with wave.open(str(wav), "wb") as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
@@ -355,6 +397,7 @@ def render(ref: str | None = None, frames: list | None = None) -> Path:
         pg = b.new_page(viewport={"width": W, "height": H})
         pg.on("pageerror", lambda e: print("pageerror:", e))
         pg.set_content(_page(env))
+        pg.evaluate("document.fonts.load('14px Galmuri14')")             # 도트 폰트가 준비된 뒤 그리기
         if frames:                                                  # 미리보기: 지정한 시각만 png로
             for i, t in enumerate(frames):
                 pg.evaluate(f"render({t})"); pg.screenshot(path=str(work / f"preview_{i:02d}.png"))
