@@ -197,8 +197,8 @@ window.render = (t) => {
     camera(WORLD, 75, 133, vw); glow(WORLD, 75, 133, vw, 0.22);
     vignette(0.5);
   } else if (t < 21.13) {                                                   // 7. 딸깍 초근접 → 줌으로 물러남 (목젖 떨림)
-    flockWorld(t, true); const p = easeOut((t - 17.95) / 0.5), vw = 7 + (96 - 7) * p - 6 * clamp01((t - 18.45) / 2.7);   // 입안(목젖) 초근접 0.5초 → 물러남
-    const by = 126 + bob(t, 0.3), cx = 74.5 + 0.5 * p, cy = 128.5 + (by - 128.5) * p;                 // 입 → 딸깍 몸 중심으로 옮겨 가서 정중앙
+    flockWorld(t, true); const p = easeOut((t - 17.95) / 0.5), vw = 12 + (48 - 12) * p - 3 * clamp01((t - 18.45) / 2.7);   // 덜 극단적으로: 시작은 덜 가깝게, 물러나도 2배 크게   // 입안(목젖) 초근접 0.5초 → 물러남
+    const cx = 74.5 + 0.5 * p, cy = 128.5 + (126 - 128.5) * p;           // 카메라는 고정 → 딸깍도 둥실둥실 움직여 보임                 // 입 → 딸깍 몸 중심으로 옮겨 가서 정중앙
     camera(WORLD, cx, cy, vw); glow(WORLD, cx, cy, vw, 0.2); vignette(0.5);
   } else if (t < 24.9) {                                                    // 8. 하늘 가득, 천천히 다가감
     packedWorld(t); const vw = 180 - 14 * clamp01((t - 21.13) / 3.77);
@@ -214,8 +214,9 @@ window.render = (t) => {
     if (t >= TECHNO) {                                                       // 앞 층: 삐빅은 계속 크게 (클로즈업 유지)
       const beat = Math.floor((t - TECHNO) / BEAT), bp = ((t - TECHNO) / BEAT) % 1;
       sizeTo(FG, 40, 71); fg.setTransform(1, 0, 0, 1, 0, 0); fg.clearRect(0, 0, 40, 71);
-      drawAngel(fg, 'ai', 2 + (beat % 2 ? 2 : -2), 21 - (bp < 0.3 ? 2 : 0), t, 0.4, {eyes: 'open', mouth: true, arms: beat % 2 === 0 ? 'up' : null});
-      camera(FG, 20, 35.5, 30);
+      const step = beat === 0 ? 0 : (beat % 2 ? 2 : -2);                    // 원래 자리와 픽셀 격자를 정확히 맞춤 (튀지 않게)
+      drawAngel(fg, 'ai', 3 + step, 21 - (bp < 0.3 && beat > 0 ? 2 : 0), t, 0.4, {eyes: 'open', mouth: true, arms: beat % 2 === 0 ? 'up' : null});
+      camera(FG, 20, 35, 30); glow(FG, 20, 35, 30, 0.22);
     }
     if (t >= TECHNO && Math.floor((t - TECHNO) / BEAT) % 2 === 0 && ((t - TECHNO) / BEAT) % 1 < 0.15) { m.fillStyle = 'rgba(255,255,255,0.08)'; m.fillRect(0, 0, 1080, 1920); }
     vignette(0.45);
