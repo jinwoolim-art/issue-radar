@@ -1,10 +1,16 @@
-"""스토리 영상: 삐빅 탄생기 (성탄 장면 패러디, 약 28.5초) — v2
+"""스토리 영상: 삐빅 탄생기 v3 (성탄 장면 패러디, 31초)
 
-탐님 방향(2026-10-09): 레퍼런스의 컷·카메라·타이밍을 그대로 따른다. 전체가 잔잔하고 엄숙하며, 모두 눈을 지그시 감고 있고,
-아기 삐빅만 눈을 멀뚱멀뚱 뜨고 있으며, 17.5초에 천사 딸깍 한 명만 정면으로 눈과 입을 크게 연다. 효과는 과하지 않게.
-그림은 '픽셀 + CG 조명'(빛 번짐·빛줄기·먼지·원근 흐림·비네팅). 배경·인물은 저해상도 캔버스(216x384)에 도형으로 그려
-그대로 5배 키우므로 형태가 분명한 픽셀이 된다.
-오디오: 레퍼런스 원본 0~27.37초 그대로 + 마지막에 "삐빅" 한 번 (엔딩 카드·글자 없음).
+탐님 디렉션(2026-10-09) 최종:
+- 레퍼런스 컷 시점 그대로 (13.33 · 17.47 · 21.13 · 24.90초). 18초 컷 대신 줌으로 물러남
+- 철저한 픽셀 규칙: 모든 그림은 story_pixel 도구(픽셀 타원·다각형·계단식 직선·자동 외곽선)로만
+- 픽셀 카메라: 장면을 1배로 그리고 화면 전체를 최근접 확대 (줌하면 픽셀이 같이 커짐)
+- 모두 U자 눈을 지그시 감고, 원본 노래 크기에 맞춰 입을 뻥끗, 천천히 끄덕끄덕 (거의 같은 박자, 살짝씩 어긋나게)
+- 아기 삐빅만 멀뚱멀뚱·깜빡·두리번 + 물음표 + 작은 "삐빅"
+- 줌아웃 중 어린 양이 종종걸음으로 들어와 털썩 앉음. 끝 무렵 엄마와 양이 카메라를 돌아봄
+- 천사 크루는 적게·크게, 날갯짓 1초 주기, 둥실둥실
+- 17.5초 딸깍만 눈 동그랗게·입 최대로·목젖 떨림
+- 마지막: 노래하는 크루를 따라 팬 → 가운데 삐빅이 크게 → 윙크 → "삐빅!" → 테크노로 바뀌며 다 같이 춤 (3초)
+오디오: 레퍼런스 원본 0~27.37초 + 작은 삐빅 효과음 + 마지막 삐빅 + 직접 합성한 테크노
 사용: python -m radar story [레퍼런스 영상 경로]
 """
 import json
@@ -16,293 +22,291 @@ import numpy as np
 
 from .shorts import OUT, W, H
 from .shorts_anim import CHARS
+from .story_pixel import PIXEL_JS
 
 FPS = 30
-REF_END = 27.37          # 레퍼런스 소리를 쓰는 구간 (그 뒤는 틱톡 엔딩 화면)
-BIBIK = 27.55            # 마지막 "삐빅"
-TOTAL = 28.5
+REF_END = 27.37
+TOTAL = 31.0
 SR = 44100
+BPM = 140
+TECHNO_AT = 27.7
 NAME = "2026-10-09_story-bbibik-birth"
 REF = Path.home() / "Downloads" / "IMG_1437.MP4"
+BABY_CHIRPS = [1.3, 3.1, 5.5]
 
-PAGE_JS = r"""(() => {
-const CH = %CHARS%;
-const M = document.getElementById('c'), m = M.getContext('2d');
-const L = document.createElement('canvas'); L.width = 216; L.height = 384; const l = L.getContext('2d');   // 픽셀 화면 (5배 확대)
-const F = document.createElement('canvas'); F.width = 216; F.height = 384; const fc = F.getContext('2d');  // 앞쪽(흐림용)
+STORY_JS = r"""
+const ENV = %ENV%, FPS = 30, BEAT = 60 / %BPM%, TECHNO = %TECHNO%;
+const env = t => ENV[Math.max(0, Math.min(ENV.length - 1, Math.round(t * FPS)))];
 const clamp01 = x => Math.min(1, Math.max(0, x)), ease = x => { x = clamp01(x); return x * x * (3 - 2 * x); };
 const easeOut = x => 1 - Math.pow(1 - clamp01(x), 3);
-function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let x = Math.imul(seed ^ seed >>> 15, 1 | seed);
+function rngS(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let x = Math.imul(seed ^ seed >>> 15, 1 | seed);
   x = x + Math.imul(x ^ x >>> 7, 61 | x) ^ x; return ((x ^ x >>> 14) >>> 0) / 4294967296; }; }
-const BASE = {k:'#4a5a70', w:'#e8eef5', d:'#0f2233', e:'#5ae0ff', m:'#5ae0ff', s:'#9fb0c3', c:'#ff7a6b', a:'#ffd166', A:'#7a6a3a'};
-const PAL = k => Object.assign({}, BASE, CH[k].pal, {O: '#7a1f2a', Z: '#e8d8a8'});
-
-// ── 도형 도우미 (월드 좌표) ──
-const poly = (c, pts, col) => { c.fillStyle = col; c.beginPath(); c.moveTo(pts[0][0], pts[0][1]); for (const p of pts.slice(1)) c.lineTo(p[0], p[1]); c.closePath(); c.fill(); };
-const ell = (c, x, y, rx, ry, col, rot = 0) => { c.fillStyle = col; c.beginPath(); c.ellipse(x, y, rx, ry, rot, 0, 6.2832); c.fill(); };
-const rect = (c, x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
-const line = (c, x1, y1, x2, y2, w, col) => { c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round'; c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); };
-function star(c, x, y, r, col) { c.fillStyle = col; c.beginPath();
-  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * 0.45 : r; c.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
-  c.closePath(); c.fill(); }
-function cam(c, z, cx, cy) { c.setTransform(z, 0, 0, z, 108 - cx * z, 192 - cy * z); }
-const toScreen = (x, y, z, cx, cy) => [(108 + (x - cx) * z) * 5, (192 + (y - cy) * z) * 5];
-function spr(c, rows, p, x, y, s) {
-  for (let r = 0; r < rows.length; r++) for (let q = 0; q < rows[r].length; q++) {
-    const ch = rows[r][q]; if (ch === '.' || !p[ch]) continue; c.fillStyle = p[ch]; c.fillRect(x + q * s, y + r * s, s + 0.04, s + 0.04);
-  }
+const cache = new Map(), cached = (key, fn) => { if (!cache.has(key)) cache.set(key, fn()); return cache.get(key); };
+const M = document.getElementById('c'), m = M.getContext('2d');
+const WORLD = document.createElement('canvas'), w = WORLD.getContext('2d');
+const FG = document.createElement('canvas'), fg = FG.getContext('2d');
+function sizeTo(cv, a, b) { if (cv.width !== a || cv.height !== b) { cv.width = a; cv.height = b; } }
+function clampCam(src, cx, cy, vw) { const vh = vw * 16 / 9; return [Math.min(Math.max(cx, vw / 2), src.width - vw / 2), Math.min(Math.max(cy, vh / 2), src.height - vh / 2), vw, vh]; }
+function camera(src, cx, cy, vw, alpha = 1, blur = 0) {                     // 픽셀 카메라: 잘라서 최근접 확대
+  const [x, y, a, b] = clampCam(src, cx, cy, vw);
+  m.save(); m.imageSmoothingEnabled = false; m.globalAlpha = alpha; if (blur > 0.3) m.filter = `blur(${blur}px)`;
+  m.drawImage(src, x - a / 2, y - b / 2, a, b, 0, 0, 1080, 1920); m.restore();
+  return [x, y, a];
 }
-
-// ── 로봇 얼굴: 모두 눈을 지그시 감음 / 아기 삐빅은 멀뚱 / 딸깍만 크게 놀람 ──
-function faceRows(k, mode) {
-  const rows = CH[k].grid.map(r => r.split(''));
-  const set = (x, y, ch) => { if (rows[y] && x >= 0 && x < 16) rows[y][x] = ch; };
-  if (mode === 'closed') {
-    if (k === 'prop') { for (let x = 4; x < 12; x++) set(x, 7, 'd'); for (const x of [5, 6, 9, 10]) set(x, 7, 'e'); }
-    if (k === 'tv') { for (const x of [5, 6, 9, 10]) set(x, 7, 'e'); for (const x of [6, 9]) set(x, 6, 'd'); }
-    if (k === 'can') { set(5, 6, 'B'); set(10, 6, 'B'); for (const x of [4, 5, 6, 9, 10, 11]) set(x, 6, 'Z'); }
-  }
-  if (mode === 'wide' && k === 'can') {
-    for (const y of [5, 6, 7]) for (const x of [4, 5, 6, 9, 10, 11]) set(x, y, 'e');
-    set(5, 6, 'B'); set(10, 6, 'B');
-    for (const x of [6, 7, 8, 9]) { set(x, 9, 'O'); set(x, 10, 'O'); } set(7, 8, 'O'); set(8, 8, 'O');
-    for (const [x, y] of [[2, 10], [2, 11], [1, 9], [13, 10], [13, 11], [14, 9]]) set(x, y, 's');   // 팔 번쩍
-  }
-  if (mode === 'blink' && k === 'ai') { for (let x = 4; x < 12; x++) { rows[6][x] = 'd'; rows[7][x] = [5, 6, 9, 10].includes(x) ? 'e' : 'd'; } }
-  return rows.map(r => r.join(''));
-}
-
-// ── 천사 (후광·날개·로봇) ──
-function angel(c, k, x, y, s, t, mode, ph = 0, alpha = 1) {
-  if (alpha <= 0) return;
-  c.save(); c.globalAlpha = alpha;
-  const fl = Math.sin(t * 1.4 + ph) * 0.1;                              // 느린 날갯짓
-  ell(c, x + 1.2 * s, y + 10.5 * s, 4.6 * s, 2.7 * s, '#f6f6ff', -0.55 + fl);
-  ell(c, x + 14.8 * s, y + 10.5 * s, 4.6 * s, 2.7 * s, '#f6f6ff', 0.55 - fl);
-  ell(c, x + 0.6 * s, y + 11.3 * s, 3.2 * s, 1.5 * s, '#d9dcef', -0.55 + fl);
-  ell(c, x + 15.4 * s, y + 11.3 * s, 3.2 * s, 1.5 * s, '#d9dcef', 0.55 - fl);
-  spr(c, faceRows(k, mode), PAL(k), x, y, s);
-  c.strokeStyle = '#ffe28a'; c.lineWidth = Math.max(0.7, 0.85 * s);
-  c.beginPath(); c.ellipse(x + 8 * s, y - 1.6 * s, 4.4 * s, 1.2 * s, 0, 0, 6.2832); c.stroke();
-  c.restore();
-}
-
-// ── 마구간 안 ──
-const STRAW = Array.from({length: 70}, (_, i) => { const R = rng(i + 3); return [R() * 240 - 12, 304 + R() * 70, 2 + R() * 4, R() - 0.5]; });
-function person(c, x, g, t, robe, cloth, beard, staff, ph) {               // 서 있는 남자 (왼쪽을 봄), 눈 감음
-  const b = Math.sin(t * 1.1 + ph) * 0.4;
-  poly(c, [[x - 16, g], [x + 16, g], [x + 11, g - 70], [x - 9, g - 70]], robe);
-  poly(c, [[x - 9, g - 70], [x + 11, g - 70], [x + 6, g - 60], [x - 6, g - 60]], 'rgba(0,0,0,0.18)');
-  rect(c, x - 12, g - 44, 24, 3, '#c9a227');
-  ell(c, x, g - 82 + b, 11, 12, cloth);
-  ell(c, x - 2, g - 80 + b, 7, 8, '#e8b98f');
-  if (beard) poly(c, [[x - 9, g - 77 + b], [x + 4, g - 77 + b], [x + 1, g - 66 + b], [x - 6, g - 68 + b]], beard);
-  line(c, x - 7, g - 82 + b, x - 3.5, g - 81.2 + b, 1, '#3a2010');      // 지그시 감은 눈
-  ell(c, x - 12, g - 50, 4, 4, '#e8b98f');
-  if (staff) { line(c, x + 20, g - 104, x + 20, g, 2.2, '#6b4423');
-    c.strokeStyle = '#6b4423'; c.lineWidth = 2.2; c.beginPath(); c.arc(x + 15, g - 104, 5, Math.PI, Math.PI * 2); c.stroke(); }
-}
-function mary(c, x, g, t) {                                                 // 무릎 꿇은 엄마 (오른쪽을 봄), 눈 감음
-  const b = Math.sin(t * 1.2) * 0.4;
-  poly(c, [[x - 22, g], [x + 26, g], [x + 18, g - 34], [x - 10, g - 38]], '#2f5fc8');
-  poly(c, [[x - 2, g - 36], [x + 14, g - 36], [x + 18, g - 12], [x - 2, g - 12]], '#e9ecf3');
-  ell(c, x + 4, g - 50 + b, 13, 16, '#2f5fc8');
-  ell(c, x + 3, g - 60 + b, 8, 3.5, '#f2d36b');                              // 앞머리
-  ell(c, x + 8, g - 47 + b, 7.5, 8.5, '#f0c8a0');
-  line(c, x + 9, g - 48 + b, x + 12.5, g - 47.4 + b, 1, '#5a3a22');
-  ell(c, x + 19, g - 28, 4, 5, '#f0c8a0');                                   // 모은 손
-}
-function manger(c, x, g) {
-  for (const sgn of [-1, 1]) { line(c, x + sgn * 30, g - 18, x + sgn * 18, g, 3, '#4e3119'); line(c, x + sgn * 18, g - 18, x + sgn * 30, g, 3, '#4e3119'); }
-  poly(c, [[x - 36, g - 38], [x + 36, g - 38], [x + 28, g - 16], [x - 28, g - 16]], '#7a4f2a');
-  line(c, x - 32, g - 27, x + 32, g - 27, 1, '#5e3b1f');
-  rect(c, x - 37, g - 40, 74, 3, '#8b5e34');
-  for (let i = 0; i < 16; i++) { const sx = x - 35 + i * 4.6; line(c, sx, g - 40, sx + (i % 2 ? 3 : -3), g - 45 - (i % 3), 1.1, '#e3bd5a'); }
-}
-function baby(c, x, g, t) {                                                 // 강보에 싸인 아기 삐빅 (멀뚱멀뚱)
-  const s = 1.45, mode = (t > 6.0 && t < 6.25) ? 'blink' : 'open';
-  ell(c, x, g - 39, 22, 8.5, '#f6f1e6');                                     // 강보
-  spr(c, faceRows('ai', mode).slice(0, 12), PAL('ai'), x - 8 * s, g - 46 - 12 * s, s);   // 얼굴은 강보 위로
-  line(c, x - 14, g - 42, x + 4, g - 37, 0.8, '#d8d0bf'); line(c, x - 2, g - 44, x + 14, g - 39, 0.8, '#d8d0bf');
-}
-function lamb(c, x, g) {
-  for (const dx of [-6, -2, 3, 7]) line(c, x + dx, g - 6, x + dx, g, 1.5, '#3a3030');
-  ell(c, x, g - 10, 11, 7, '#f2efe8'); ell(c, x - 6, g - 13, 5, 4, '#f7f4ee'); ell(c, x + 5, g - 14, 5, 4, '#f7f4ee');
-  ell(c, x + 11, g - 13, 4, 3.5, '#3a3030'); line(c, x + 11, g - 13.5, x + 13, g - 13.2, 0.7, '#cfc6b8');
-}
-function interior(c, t) {
-  for (let i = -4; i < 24; i++) { rect(c, i * 12, -80, 12, 384, i % 2 ? '#5b3a20' : '#4e3119'); rect(c, i * 12, -80, 1, 384, '#35210f'); }
-  rect(c, -60, 112, 340, 9, '#3e2714');
-  poly(c, [[-60, 10], [108, -40], [280, 10], [280, 18], [108, -32], [-60, 18]], '#3e2714');
-  rect(c, -60, 300, 340, 120, '#8f6a2c');
-  for (const [x, y, len, sl] of STRAW) line(c, x, y, x + len, y + sl * 2, 0.8, '#c99b45');
-  ell(c, 214, 300, 44, 20, '#a8823a'); ell(c, 4, 302, 30, 14, '#a8823a');
-  line(c, 108, -80, 108, 140, 0.8, '#2a1a0c');
-  star(c, 108, 150, 10, '#ffe28a');
-  person(c, 208, 318, t, '#3f7f4a', '#e6e2d0', '#4a3420', false, 2);     // 목자 (초록)
-  person(c, 228, 322, t, '#a93a2e', '#d4b483', '#7a5030', false, 3);     // 목자 (빨강)
-  person(c, 166, 320, t, '#9a5230', '#c8a060', '#5a3a1e', true, 1);      // 아빠
-  manger(c, 108, 318); baby(c, 108, 318, t);
-  mary(c, 46, 324, t); lamb(c, 78, 336);
-}
-// 조명: 별빛 빛줄기 + 따뜻한 빛 + 빛 속 먼지
-const DUST = Array.from({length: 45}, (_, i) => { const R = rng(i * 5 + 11); return [R(), R(), 0.3 + R() * 0.7, R() * 6.28]; });
-function interiorLight(t, z, cx, cy, a) {
-  const [sx, sy] = toScreen(108, 150, z, cx, cy);
-  m.save(); m.globalCompositeOperation = 'screen'; m.globalAlpha = a;
-  for (const k of [-1, 0, 1]) {
-    const gr = m.createLinearGradient(sx, sy, sx, sy + 1500); gr.addColorStop(0, 'rgba(255,225,150,0.2)'); gr.addColorStop(1, 'rgba(255,225,150,0)');
-    m.fillStyle = gr; m.beginPath(); m.moveTo(sx, sy); m.lineTo(sx + k * 260 - 130 * z, sy + 1500); m.lineTo(sx + k * 260 + 130 * z, sy + 1500); m.closePath(); m.fill();
-  }
-  const [bx, by] = toScreen(108, 280, z, cx, cy);
-  const wg = m.createRadialGradient(bx, by, 20, bx, by, 520 * Math.max(0.6, z)); wg.addColorStop(0, 'rgba(255,200,120,0.3)'); wg.addColorStop(1, 'rgba(255,200,120,0)');
-  m.fillStyle = wg; m.fillRect(0, 0, 1080, 1920);
-  for (const [px, py, sp, ph] of DUST) {
-    const x = (px * 1080 + Math.sin(t * 0.5 + ph) * 30) % 1080, y = (py * 1920 + t * 18 * sp) % 1920;
-    m.fillStyle = `rgba(255,240,200,${0.3 + 0.3 * Math.sin(t * 2 + ph)})`; m.fillRect(Math.round(x / 5) * 5, Math.round(y / 5) * 5, 5, 5);
-  }
-  m.restore();
-}
-
-// ── 바깥 밤 (마구간은 땅 위에) ──
-const SKY = Array.from({length: 220}, (_, i) => { const R = rng(i * 7 + 1); return [R() * 300 - 40, -560 + R() * 850, R() < 0.15 ? 1.2 : 0.7, R() * 6.28]; });
-function tree(c, x, g, s) { rect(c, x - 1.5 * s, g - 8 * s, 3 * s, 8 * s, '#1c140c');
-  for (let i = 0; i < 4; i++) poly(c, [[x - (12 - i * 2.4) * s, g - (6 + i * 7) * s], [x, g - (20 + i * 7) * s], [x + (12 - i * 2.4) * s, g - (6 + i * 7) * s]], '#0f2a22'); }
-function exterior(c, t) {
-  const gr = c.createLinearGradient(0, -560, 0, 330); gr.addColorStop(0, '#050920'); gr.addColorStop(0.72, '#15225a'); gr.addColorStop(1, '#2a3d84');
-  c.fillStyle = gr; c.fillRect(-80, -600, 380, 1000);
-  for (const [x, y, s, ph] of SKY) { c.globalAlpha = 0.45 + 0.4 * Math.sin(t * 1.5 + ph); rect(c, x, y, s, s, '#ffffff'); } c.globalAlpha = 1;
-  const mist = c.createLinearGradient(0, 270, 0, 320); mist.addColorStop(0, 'rgba(120,140,200,0)'); mist.addColorStop(1, 'rgba(120,140,200,0.25)');
-  c.fillStyle = mist; c.fillRect(-80, 270, 380, 50);
-  poly(c, [[-80, 304], [10, 286], [80, 298], [150, 284], [300, 300], [300, 420], [-80, 420]], '#16224c');
-  tree(c, 18, 322, 1.25); tree(c, 200, 318, 1.05); tree(c, 40, 326, 0.8);
-  poly(c, [[-80, 336], [50, 326], [150, 332], [300, 324], [300, 440], [-80, 440]], '#0c171f');
-  rect(c, 70, 340, 76, 4, '#2a1c10');                                       // 바닥 받침 (땅 위에 앉힘)
-  rect(c, 76, 308, 64, 32, '#5b3a20'); rect(c, 76, 308, 64, 2, '#3a2414');
-  poly(c, [[68, 310], [108, 282], [148, 310]], '#3a2414'); poly(c, [[74, 309], [108, 286], [142, 309]], '#4a2e18');
-  for (const px of [76, 92, 124, 138]) rect(c, px, 308, 2.5, 32, '#3a2414');
-  rect(c, 98, 316, 20, 24, '#ffcf6b'); rect(c, 104, 326, 8, 14, '#c98a3a');
-  ell(c, 60, 338, 9, 5, '#7a5a24'); for (const fx of [22, 32, 42]) rect(c, fx, 328, 2, 12, '#3a2414'); rect(c, 20, 331, 26, 1.5, '#3a2414');
-  star(c, 108, 250, 6.5, '#ffe28a');
-}
-function exteriorLight(z, cx, cy, a) {
-  m.save(); m.globalCompositeOperation = 'screen'; m.globalAlpha = a;
-  for (const [x, y, r, col] of [[108, 328, 320, 'rgba(255,200,110,0.4)'], [108, 250, 260, 'rgba(255,230,150,0.3)']]) {
-    const [sx, sy] = toScreen(x, y, z, cx, cy); const gr = m.createRadialGradient(sx, sy, 6, sx, sy, r * z);
-    gr.addColorStop(0, col); gr.addColorStop(1, 'rgba(0,0,0,0)'); m.fillStyle = gr; m.fillRect(0, 0, 1080, 1920);
-  }
-  m.restore();
-}
-
-// ── 천사 배치 ──
-const SKYANG = (() => { const R = rng(41), out = [];                         // 서로 겹치지 않게 흩뿌림 (격자 X)
-  while (out.length < 44) { const x = -6 + R() * 210, y = -80 + R() * 300;
-    if (out.every(o => Math.hypot(o.x - x, (o.y - y) * 1.2) > 25)) out.push({k: ['prop', 'tv', 'can'][out.length % 3], x, y, s: 0.85 + R() * 0.45, ph: R() * 6.28, d: R() * 0.5}); }
-  return out; })();
-const PACK = (() => { const R = rng(77), out = []; let tries = 0;
-  while (out.length < 78 && tries++ < 20000) { const x = -8 + R() * 214, y = -4 + R() * 360;
-    if (out.every(o => Math.hypot(o.x - x, (o.y - y) * 1.15) > 19)) out.push({k: ['prop', 'tv', 'can'][out.length % 3], x, y, s: 0.7 + R() * 0.55, ph: R() * 6.28}); }
-  return out; })();
-const MID = [['prop', 22, 108, 2.3], ['tv', 150, 96, 2.3], ['tv', 14, 250, 2.0], ['prop', 160, 260, 2.0], ['tv', 70, 40, 1.4], ['prop', 140, 30, 1.3], ['can', 30, 330, 1.6], ['can', 168, 350, 1.5]];
-const FAR = Array.from({length: 16}, (_, i) => { const R = rng(i * 3 + 77); return {k: ['prop', 'tv', 'can'][i % 3], x: R() * 200, y: R() * 360, s: 0.8, ph: R() * 6.28}; });
-function skyBG(c) { const gr = c.createLinearGradient(0, 0, 0, 384); gr.addColorStop(0, '#0a1440'); gr.addColorStop(1, '#22348a'); c.fillStyle = gr; c.fillRect(0, 0, 216, 384);
-  for (const [x, y, s] of SKY.slice(0, 90)) rect(c, ((x + 40) % 216 + 216) % 216, ((y + 560) % 384 + 384) % 384, s, s, 'rgba(255,255,255,0.6)'); }
-function closeSky(t, yell, fgBlur, push) {                                 // 천사 무리 안의 중간 샷
-  l.setTransform(1, 0, 0, 1, 0, 0); skyBG(l);
-  const z = 1 + push, off = (v, cv) => cv + (v - cv) * z;
-  for (const a of FAR) angel(l, a.k, a.x, a.y + Math.sin(t + a.ph) * 2, a.s, t, 'closed', a.ph, 0.55);
-  for (const [k, x, y, s] of MID) angel(l, k, off(x, 108), off(y + Math.sin(t * 0.9 + x) * 2, 192), s * z, t, 'closed', x);
-  const cs = 3.3 * z; angel(l, 'can', 108 - 8 * cs, 168 - 8.5 * cs + Math.sin(t * 0.8) * 1.5, cs, t, yell ? 'wide' : 'closed', 1);
-  fc.setTransform(1, 0, 0, 1, 0, 0); fc.clearRect(0, 0, 216, 384);
-  angel(fc, 'tv', -40, 250, 6.0, t, 'closed', 2); angel(fc, 'prop', 150, -30, 5.5, t, 'closed', 3);
-  present(1); bloom(0.32); fg(fgBlur); vignette(0.5);
-}
-
-// ── 합성 ──
-function present(a) { m.save(); m.imageSmoothingEnabled = false; m.globalAlpha = a; m.drawImage(L, 0, 0, 1080, 1920); m.restore(); }
-function bloom(a) { m.save(); m.imageSmoothingEnabled = true; m.globalCompositeOperation = 'screen'; m.globalAlpha = a; m.filter = 'blur(16px)'; m.drawImage(L, 0, 0, 1080, 1920); m.restore(); }
-function fg(blur) { m.save(); m.imageSmoothingEnabled = false; if (blur > 0.3) m.filter = `blur(${blur}px)`; m.drawImage(F, 0, 0, 1080, 1920); m.restore(); }
+function glow(src, cx, cy, vw, a) { const [x, y, aa, bb] = clampCam(src, cx, cy, vw);       // 은은한 빛 번짐 (렌즈 효과)
+  m.save(); m.imageSmoothingEnabled = true; m.globalCompositeOperation = 'screen'; m.globalAlpha = a; m.filter = 'blur(16px)';
+  m.drawImage(src, x - aa / 2, y - bb / 2, aa, bb, 0, 0, 1080, 1920); m.restore(); }
 function vignette(a) { const gr = m.createRadialGradient(540, 960, 520, 540, 960, 1180); gr.addColorStop(0, 'rgba(0,0,0,0)'); gr.addColorStop(1, `rgba(0,0,0,${a})`);
   m.fillStyle = gr; m.fillRect(0, 0, 1080, 1920); }
-function shotInterior(t, a) {
-  const p = clamp01(t / 5.2), z = t < 5.2 ? 2.5 - 1.5 * easeOut(p) : 1.0 - 0.03 * clamp01((t - 5.2) / 2.8);
-  const cx = 112 - 8 * (1 - easeOut(p)), cy = 272 - 48 * easeOut(p);
-  l.setTransform(1, 0, 0, 1, 0, 0); l.fillStyle = '#000'; l.fillRect(0, 0, 216, 384); cam(l, z, cx, cy); interior(l, t);
-  present(a); bloom(0.3 * a); interiorLight(t, z, cx, cy, a);
+
+// ── 노래·끄덕임: 모두 거의 같은 박자, 살짝씩 어긋나게 ──
+const sing = (t, ph) => t < 8.3 ? (env(t - ph) > 0.1 && Math.floor((t + ph) * 1.6) % 2 === 0) : env(t - ph) > 0.42;
+const nod = (t, ph) => Math.floor((t + ph) / 1.2) % 2 === 1;
+const MARY_SP = (o) => cached('mary' + JSON.stringify(o), () => mary(o));
+const MAN_SP = (who, o) => cached(who + JSON.stringify(o), () => man(Object.assign({}, who === 'jo' ? JOSEPH : who === 'sa' ? SHEPA : SHEPB, o)));
+const MANGER_SP = (o) => cached('mg' + JSON.stringify(o), () => manger(o));
+const ANGEL_SP = (k, o, up) => cached('an' + k + JSON.stringify(o) + up, () => angelCanvas(k, o, up));
+function lambS(o) {
+  return cached('lamb' + JSON.stringify(o), () => outlined(26, 18, c => {
+    const dy = o.sit ? 3 : 0;
+    if (!o.sit) { const f = o.frame; for (const [lx, len] of [[5, f ? 5 : 4], [9, f ? 4 : 5], [14, f ? 5 : 4], [18, f ? 4 : 5]]) R(c, lx, 12, 2, len, '#3a3030'); }
+    else { R(c, 5, 15, 4, 2, '#3a3030'); R(c, 16, 15, 4, 2, '#3a3030'); }
+    E(c, 11, 9 + dy, 10, 5.5, '#f2efe8'); E(c, 5, 6 + dy, 4, 3, '#f7f4ee'); E(c, 12, 5 + dy, 4.5, 3, '#f7f4ee'); E(c, 18, 7 + dy, 3.5, 3, '#f7f4ee');
+    if (o.turned) { E(c, 21, 7 + dy, 4, 4, '#3a3030'); P(c, 19, 6 + dy, '#f2efe8'); P(c, 22, 6 + dy, '#f2efe8'); R(c, 16, 4 + dy, 2, 2, '#3a3030'); R(c, 24, 4 + dy, 2, 2, '#3a3030'); }
+    else { E(c, 22, 7 + dy, 3.5, 3.5, '#3a3030'); if (o.closed) R(c, 22, 6 + dy, 2, 1, '#8a8080'); else P(c, 23, 6 + dy, '#e8e0d0'); R(c, 19, 4 + dy, 2, 2, '#3a3030'); }
+  }));
 }
-function shotExterior(t, a, cy, angels) {
-  l.setTransform(1, 0, 0, 1, 0, 0); cam(l, 1, 108, cy); exterior(l, t);
-  if (angels) for (const s of SKYANG) angel(l, s.k, s.x, s.y + Math.sin(t * 0.9 + s.ph) * 1.5, s.s, t, 'closed', s.ph, ease((t - 9.0 - s.d) / 1.5));
-  present(a); bloom(0.35 * a); exteriorLight(1, 108, cy, a);
+const wingUp = (t, ph) => Math.floor((t + ph) / 0.5) % 2 === 0;               // 1초 주기 날갯짓
+const bob = (t, ph) => Math.round(Math.sin((t + ph) * Math.PI) * 2);          // 2초 주기 둥실둥실
+function drawAngel(c, k, x, y, t, ph, o) { const sp = ANGEL_SP(k, o, wingUp(t, ph)); c.drawImage(sp, Math.round(x), Math.round(y + bob(t, ph))); }
+
+// ── 1. 마구간 안 (180 x 300) ──
+const STRAW = Array.from({length: 70}, (_, i) => { const r = rngS(i + 3); return [Math.floor(r() * 178), 249 + Math.floor(r() * 50)]; });
+const MOTES = Array.from({length: 26}, (_, i) => { const r = rngS(i * 9 + 4); return [60 + r() * 60, 130 + r() * 110, 0.3 + r() * 0.6, r() * 6.28]; });
+function babyEyes(t) {
+  const seq = [[0.8, 'open'], [1.0, 'blink'], [1.7, 'lookL'], [1.95, 'open'], [2.6, 'lookR'], [2.8, 'blink'], [3.5, 'lookL'], [4.2, 'lookR'], [4.5, 'open'], [5.2, 'blink'], [5.4, 'open'], [6.1, 'lookR'], [6.6, 'open'], [7.0, 'blink'], [9, 'open']];
+  for (const [end, s] of seq) if (t < end) return s; return 'open';
 }
+function interiorWorld(t) {
+  sizeTo(WORLD, 180, 300); const c = w, floor = 248; c.setTransform(1, 0, 0, 1, 0, 0);
+  for (let i = 0; i < 180; i += 10) { R(c, i, 0, 10, 300, (i / 10) % 2 ? '#5b3a20' : '#4e3119'); R(c, i, 0, 1, 300, '#3a2412'); }
+  for (const px of [12, 163]) R(c, px, 0, 5, floor, '#3a2414');
+  R(c, 0, 60, 180, 5, '#3a2414'); for (let i = 3; i < 180; i += 9) { E(c, i, 66, 3, 2, '#2f7d4a'); if (i % 18 === 3) P(c, i, 67, '#d63a3a'); }
+  const ax = 74; R(c, ax, 96, 32, 32, '#0e1a40'); E(c, ax + 16, 96, 16, 10, '#0e1a40');
+  for (let i = 0; i < 9; i++) P(c, ax + 3 + (i * 11) % 27, 90 + (i * 7) % 34, '#dfe6ff');
+  R(c, ax + 15, 86, 2, 42, '#3a2414'); R(c, ax, 112, 32, 2, '#3a2414'); R(c, ax - 2, 128, 36, 3, '#3a2414');
+  for (const lx of [40, 140]) { R(c, lx, 65, 1, 16, '#2a1c10'); R(c, lx - 3, 79, 7, 2, '#2a1c10'); R(c, lx - 2, 81, 5, 6, '#ffd98a'); R(c, lx - 3, 87, 7, 1, '#2a1c10'); }
+  for (const [r, a] of [[46, 0.04], [32, 0.05], [20, 0.07]]) E(c, 90, 142, r, r * 0.9, `rgba(255,220,140,${a})`);   // 별빛 (픽셀 단계 원)
+  R(c, 90, 0, 1, 137, '#2a1a0c'); S(c, STAR, {y: '#ffd166'}, 86, 137);
+  R(c, 0, floor, 180, 52, '#8f6a2c'); for (const [x, y] of STRAW) R(c, x, y, 3, 1, '#c99b45');
+  for (const [bx, by] of [[0, floor - 18], [0, floor - 8], [13, floor - 8], [150, floor - 12], [164, floor - 12]]) { R(c, bx, by, 14, 10, '#c9a24a'); R(c, bx, by + 4, 14, 1, '#a8823a'); R(c, bx + 6, by, 1, 10, '#a8823a'); }
+  // 사람들 (뒤 → 앞)
+  const turned = t > 5.9;
+  c.drawImage(MAN_SP('sb', {mouth: sing(t, 0.12), nod: nod(t, 0.1)}), -10, floor - 84);
+  c.drawImage(MAN_SP('sa', {mouth: sing(t, 0.06), nod: nod(t, 0.05)}), 140, floor - 82);
+  c.drawImage(MAN_SP('jo', {mouth: sing(t, 0.0), nod: nod(t, 0.0)}), 116, floor - 72);
+  c.drawImage(MANGER_SP({eyes: babyEyes(t)}), 59, floor - 14);
+  c.drawImage(MARY_SP(turned ? {turned: true} : {mouth: sing(t, 0.08), nod: nod(t, 0.08)}), 2, floor - 30);
+  // 어린 양: 3~4.5초 종종걸음으로 들어와 → 멈칫 → 5초 털썩 앉음 → 끝 무렵 카메라를 돌아봄
+  if (t > 3.0) { const p = clamp01((t - 3.0) / 1.5), lx = -28 + (52 + 28) * p, walking = t < 4.5, sit = t > 5.0;
+    const hop = walking ? (Math.floor(t * 8) % 2) : 0;
+    c.drawImage(lambS({frame: walking ? Math.floor(t * 8) % 2 : 0, sit, turned: t > 6.05, closed: sit && t <= 6.05}), Math.round(lx), floor + 22 - hop); }
+  // 아기의 "뭐지?" 물음표
+  for (const [a, b, dx, dy] of [[1.4, 2.2, 0, 0], [3.2, 4.1, 0, 0], [3.4, 4.1, 7, -6], [5.6, 6.5, 0, 0]]) if (t > a && t < b) qmark(c, 102 + dx, floor - 24 + dy, dx ? '#f4f6ff' : '#ffe28a');
+  // 빛줄기 (계단식 반투명 픽셀) + 빛 속 먼지
+  G(c, [[88, 140], [93, 140], [128, 300], [52, 300]], 'rgba(255,225,150,0.06)');
+  G(c, [[89, 140], [92, 140], [108, 300], [72, 300]], 'rgba(255,225,150,0.06)');
+  for (const [x, y, sp, ph] of MOTES) P(c, Math.round(x + Math.sin(t * 0.6 + ph) * 3), Math.round(y + ((t * 6 * sp) % 30)), `rgba(255,240,200,${0.35 + 0.3 * Math.sin(t * 2 + ph)})`);
+}
+
+// ── 2. 바깥 (180 x 440, 정원 있는 마구간) + 하늘의 천사들 ──
+let EXT = null;
+function exteriorWorld(t, angels) {
+  if (!EXT) { EXT = document.createElement('canvas'); EXT.width = 180; EXT.height = 440; exteriorScene(EXT.getContext('2d'), 180, 440); }
+  sizeTo(WORLD, 180, 440); w.setTransform(1, 0, 0, 1, 0, 0); w.drawImage(EXT, 0, 0);
+  if (!angels) return;
+  for (const a of SKYANG) { const al = ease((t - 9.0 - a.d) / 1.5); if (al <= 0) continue;
+    w.save(); w.globalAlpha = al; drawAngel(w, a.k, a.x, a.y, t, a.ph, {eyes: 'U', mouth: sing(t, a.ph * 0.02)}); w.restore(); }
+}
+const poisson = (n, W, H, d, seed, x0 = 0, y0 = 0) => { const r = rngS(seed), out = []; let tries = 0;
+  while (out.length < n && tries++ < 20000) { const x = x0 + r() * W, y = y0 + r() * H; if (out.every(o => Math.hypot(o.x - x, (o.y - y) * 1.1) > d)) out.push({x, y}); }
+  return out; };
+const KINDS = ['prop', 'tv', 'can'];
+const SKYANG = poisson(12, 150, 270, 46, 31, -4, 50).map((p, i) => ({...p, k: KINDS[i % 3], ph: (i * 0.37) % 1.2, d: (i * 0.13) % 0.45}));
+
+// ── 3. 천사 무리 안 (150 x 267) ──
+const MIDANG = [['prop', 14, 52], ['tv', 102, 44], ['tv', 6, 160], ['prop', 108, 168], ['can', 56, 212], ['prop', 60, 10]];
+function skyBG(c, Wd, Hd, seed) { for (let i = 0; i < Hd; i++) { const t = i / Hd; R(c, 0, i, Wd, 1, `rgb(${10 + t * 22},${20 + t * 30},${64 + t * 74})`); }
+  const r = rngS(seed); for (let i = 0; i < Wd * Hd / 400; i++) P(c, Math.floor(r() * Wd), Math.floor(r() * Hd), r() < 0.2 ? '#ffffff' : '#aeb8e8'); }
+function flockWorld(t, yell) {
+  sizeTo(WORLD, 150, 267); w.setTransform(1, 0, 0, 1, 0, 0); skyBG(w, 150, 267, 5);
+  for (const [k, x, y] of MIDANG) drawAngel(w, k, x, y, t, x * 0.01, {eyes: 'U', mouth: sing(t, x * 0.002)});
+  const o = yell ? {eyes: 'wide', mouth: 'yell', uvula: Math.floor(t * 15) % 2, arms: 'up'} : {eyes: 'U', mouth: sing(t, 0.03)};
+  drawAngel(w, 'can', 57, 112, t, 0.3, o);
+}
+function foreground(t) { sizeTo(FG, 60, 107); fg.setTransform(1, 0, 0, 1, 0, 0); fg.clearRect(0, 0, 60, 107);
+  drawAngel(fg, 'tv', -14, 70, t, 0.2, {eyes: 'U'}); drawAngel(fg, 'prop', 38, -6, t, 0.5, {eyes: 'U'}); }
+
+// ── 4. 하늘 가득 (180 x 320) ──
+const PACK = poisson(24, 176, 290, 30, 77, -6, -6).map((p, i) => ({...p, k: KINDS[(i + Math.floor(i / 5)) % 3], ph: (i * 0.29) % 1.2}));
+function packedWorld(t) {
+  sizeTo(WORLD, 180, 320); w.setTransform(1, 0, 0, 1, 0, 0); skyBG(w, 180, 320, 9);
+  for (const a of PACK) drawAngel(w, a.k, a.x, a.y, t, a.ph, {eyes: 'U', mouth: sing(t, a.ph * 0.03)});
+  G(w, [[0, 320], [0, 286], [26, 276], [44, 290], [44, 320]], '#120c08'); R(w, 30, 266, 6, 14, '#120c08'); pine(w, 166, 324, 34);
+}
+
+// ── 5. 팬 → 삐빅 → 윙크 → 테크노 댄스 (360 x 200) ──
+const ROW = [['prop', 6, 88], ['can', 46, 70], ['tv', 86, 96], ['prop', 126, 74], ['can', 166, 92], ['tv', 206, 70], ['can', 246, 96], ['prop', 334, 92], ['tv', 252, 30], ['can', 312, 34]];
+const BIB = [282, 80];                                                       // 삐빅 자리 (정가운데)
+function panWorld(t) {
+  sizeTo(WORLD, 360, 200); w.setTransform(1, 0, 0, 1, 0, 0);
+  const dance = t >= TECHNO, beat = Math.floor((t - TECHNO) / BEAT), bp = ((t - TECHNO) / BEAT) % 1;
+  skyBG(w, 360, 200, 13);
+  if (dance) {                                                               // 디스코: 박자마다 색 바뀌는 픽셀 조명
+    const cols = ['rgba(255,209,102,0.16)', 'rgba(90,224,255,0.16)', 'rgba(255,122,107,0.16)', 'rgba(199,146,255,0.16)'];
+    for (let k = 0; k < 4; k++) { const x0 = 220 + k * 34 + (beat % 2 ? 8 : -8); G(w, [[x0, 0], [x0 + 6, 0], [x0 + 30, 200], [x0 - 24, 200]], cols[(beat + k) % 4]); }
+  }
+  for (const [k, x, y] of ROW) {
+    if (dance) { const step = (beat % 2 ? 2 : -2), up = beat % 2 === 0;
+      drawAngel(w, k, x + step, y - (bp < 0.3 ? 2 : 0), t, 0, {eyes: 'open', mouth: true, arms: up ? 'up' : null}); }
+    else drawAngel(w, k, x, y, t, x * 0.004, {eyes: 'U', mouth: sing(t, x * 0.001)});
+  }
+  let o;
+  if (dance) o = {eyes: 'open', mouth: true, arms: beat % 2 === 0 ? 'up' : null};
+  else if (t > 27.42 && t < 27.72) o = {eyes: 'wink'};
+  else if (t > 27.3) o = {eyes: 'open'};
+  else o = {eyes: 'U', mouth: sing(t, 0.05)};
+  drawAngel(w, 'ai', BIB[0] + (dance ? (beat % 2 ? 3 : -3) : 0), BIB[1] - (dance && bp < 0.3 ? 3 : 0), t, 0.4, o);
+}
+
 window.render = (t) => {
   m.setTransform(1, 0, 0, 1, 0, 0); m.filter = 'none'; m.globalCompositeOperation = 'source-over'; m.globalAlpha = 1;
   m.fillStyle = '#000'; m.fillRect(0, 0, 1080, 1920);
-  if (t < 8.0) {                                              // 1~2. 이어지는 줌아웃 → 디졸브
-    shotInterior(t, 1);
-    if (t > 7.5) shotExterior(t, ease((t - 7.5) / 0.5), 250, false);
+  if (t < 8.0) {                                                            // 1. 끊김 없는 줌아웃 (아기 → 전체)
+    interiorWorld(t);
+    const p = easeOut(t / 5.2), vw = t < 5.2 ? 44 + (138 - 44) * p : 138 + 4 * clamp01((t - 5.2) / 2.3);
+    const cx = 90, cy = t < 5.2 ? 238 + (178 - 238) * p : 178;
+    camera(WORLD, cx, cy, vw); glow(WORLD, cx, cy, vw, 0.22);
+    if (t > 7.5) { exteriorWorld(t, false); camera(WORLD, 90, 280, 180, ease((t - 7.5) / 0.5)); }   // 2. 디졸브
     vignette(0.45);
-  } else if (t < 13.33) {                                     // 3~4. 위로 틸트 → 천사들이 한꺼번에 서서히
-    const cy = 250 - 160 * ease((t - 8.0) / 1.0) - 6 * clamp01((t - 9.0) / 4.3);
-    shotExterior(t, 1, cy, t > 8.9); vignette(0.45);
-  } else if (t < 17.47) closeSky(t, false, 14 * (1 - ease((t - 13.33) / 1.17)), 0.04 * clamp01((t - 13.33) / 4));   // 5~6. 초점 맞춰지기
-  else if (t < 18.0) {                                        // 7a. 딸깍 초근접 (0.5초)
-    l.setTransform(1, 0, 0, 1, 0, 0); skyBG(l); const s = 12.5; angel(l, 'can', 108 - 8 * s, 205 - 8.5 * s, s, t, 'wide', 1);
-    present(1); bloom(0.3); vignette(0.5);
-  } else if (t < 21.13) closeSky(t, true, 0, 0.03 + 0.05 * clamp01((t - 18) / 3.1));            // 7b. 딸깍만 눈·입 크게
-  else if (t < 24.9) {                                        // 8. 천사로 가득한 하늘, 천천히 다가감
-    l.setTransform(1, 0, 0, 1, 0, 0); skyBG(l);
-    const z = 1 + 0.07 * clamp01((t - 21.13) / 3.8); cam(l, z, 108, 200);
-    for (const a of PACK) angel(l, a.k, a.x, a.y + Math.sin(t * 0.9 + a.ph) * 1.5, a.s, t, 'closed', a.ph);
-    poly(l, [[-30, 384], [-30, 330], [40, 312], [70, 330], [70, 384]], '#120c08'); rect(l, 44, 300, 9, 20, '#120c08'); tree(l, 196, 392, 1.2);
-    present(1); bloom(0.4); vignette(0.5);
-  } else if (t < 28.1) closeSky(t, false, 12 * (1 - ease((t - 24.9) / 1.1)), 0.02 + 0.05 * clamp01((t - 24.9) / 3));  // 9. 합창하는 천사들 → "삐빅"
+  } else if (t < 13.33) {                                                   // 3. 위로 틸트 → 4. 천사들이 한꺼번에 서서히
+    exteriorWorld(t, t > 8.9); const cy = 280 - 80 * ease((t - 8.0) / 1.0) - 6 * clamp01((t - 9.0) / 4.3);
+    camera(WORLD, 90, cy, 180); glow(WORLD, 90, cy, 180, 0.25); vignette(0.45);
+  } else if (t < 17.47) {                                                   // 5~6. 무리 안: 앞쪽이 흐렸다가 초점
+    flockWorld(t, false); const vw = 120 - 8 * clamp01((t - 13.33) / 4.1);
+    camera(WORLD, 75, 133, vw); glow(WORLD, 75, 133, vw, 0.22);
+    const fp = (t - 13.33) / 1.17; if (fp < 1.4) { foreground(t); camera(FG, 30, 53.5, 60, 1 - clamp01((fp - 1) / 0.4), 14 * (1 - ease(fp))); }
+    vignette(0.5);
+  } else if (t < 21.13) {                                                   // 7. 딸깍 초근접 → 줌으로 물러남 (목젖 떨림)
+    flockWorld(t, true); const p = easeOut((t - 17.95) / 0.45), vw = 28 + (96 - 28) * p - 6 * clamp01((t - 18.4) / 2.7);   // 0.5초 초근접 유지 후 물러남
+    camera(WORLD, 75, 128 + 5 * p, vw); glow(WORLD, 75, 128, vw, 0.2); vignette(0.5);
+  } else if (t < 24.9) {                                                    // 8. 하늘 가득, 천천히 다가감
+    packedWorld(t); const vw = 180 - 14 * clamp01((t - 21.13) / 3.77);
+    camera(WORLD, 90, 160, vw); glow(WORLD, 90, 160, vw, 0.3); vignette(0.5);
+  } else if (t < 30.8) {                                                    // 9. 팬 → 삐빅 크게 → 윙크 → 삐빅! → 테크노 댄스
+    panWorld(t);
+    let cx, vw;
+    if (t < 27.2) { cx = 50 + (BIB[0] + 16 - 50) * ease((t - 24.9) / 2.3); vw = 100; }
+    else if (t < TECHNO) { cx = BIB[0] + 17; vw = 100 - 70 * easeOut((t - 27.2) / 0.25); }
+    else { cx = BIB[0] + 17; vw = 30 + 80 * easeOut((t - TECHNO) / 0.25); }
+    const cy = BIB[1] + 14;
+    camera(WORLD, cx, cy, vw); glow(WORLD, cx, cy, vw, t >= TECHNO ? 0.35 : 0.22);
+    if (t < 25.9) { const fp = (t - 24.9) / 0.9; foreground(t); camera(FG, 30, 53.5, 60, 1 - clamp01((fp - 0.8) / 0.3), 12 * (1 - ease(fp))); }
+    if (t >= TECHNO && Math.floor((t - TECHNO) / BEAT) % 2 === 0 && ((t - TECHNO) / BEAT) % 1 < 0.15) { m.fillStyle = 'rgba(255,255,255,0.08)'; m.fillRect(0, 0, 1080, 1920); }
+    vignette(0.45);
+  }
 };
-})();"""
+"""
 
 
-def _page() -> str:
-    js = PAGE_JS.replace("%CHARS%", json.dumps(CHARS))
+def _page(env: list) -> str:
+    js = (PIXEL_JS.replace("%CHARS%", json.dumps(CHARS)) + STORY_JS.replace("%ENV%", json.dumps([round(v, 3) for v in env]))
+          .replace("%BPM%", str(BPM)).replace("%TECHNO%", str(TECHNO_AT)))
     return (f"<html><head><meta charset='utf-8'><style>*{{margin:0}}body{{width:{W}px;height:{H}px;background:#000;overflow:hidden}}"
             f"canvas{{display:block}}</style></head><body><canvas id='c' width='{W}' height='{H}'></canvas><script>{js}</script></body></html>")
 
 
-def _bibik() -> np.ndarray:
-    def tone(f0, f1, dur):
-        t = np.arange(int(SR * dur)) / SR
-        ph = 2 * np.pi * np.cumsum(np.linspace(f0, f1, t.size)) / SR
-        return (0.6 * np.sin(ph) + 0.2 * np.sign(np.sin(ph))) * np.minimum(1, t / 0.004) * np.exp(-t / (dur * 0.9))
-    return np.concatenate([tone(1500, 1900, 0.07), np.zeros(int(SR * 0.03)), tone(2300, 2900, 0.09)])
+# ── 소리 ──
+def _tone(f0, f1, dur, square=0.3):
+    t = np.arange(int(SR * dur)) / SR
+    ph = 2 * np.pi * np.cumsum(np.linspace(f0, f1, t.size)) / SR
+    return ((1 - square) * np.sin(ph) + square * np.sign(np.sin(ph)) * 0.5) * np.minimum(1, t / 0.004) * np.exp(-t / (dur * 0.9))
 
 
-def _soundtrack(work: Path, ref: Path) -> Path:
+def _bibik(gain=1.0):
+    return np.concatenate([_tone(1500, 1900, 0.07), np.zeros(int(SR * 0.03)), _tone(2300, 2900, 0.09)]) * gain
+
+
+def _techno(dur):
+    """직접 합성한 테크노 (140BPM): 킥 · 오프비트 하이햇 · 쏘우 베이스 아르페지오 · 스탭 화음"""
+    rng = np.random.default_rng(9)
+    n = int(SR * dur); out = np.zeros(n); beat = 60 / BPM
+    def put(sig, at, g):
+        i = int(at * SR); k = min(sig.size, n - i)
+        if k > 0: out[i:i + k] += sig[:k] * g
+    def saw(f, d):
+        t = np.arange(int(SR * d)) / SR
+        return (2 * ((f * t) % 1) - 1) * np.exp(-t / (d * 0.6))
+    tk = np.arange(int(SR * 0.18)) / SR
+    kick = np.sin(2 * np.pi * np.cumsum(np.linspace(160, 42, tk.size)) / SR) * np.exp(-tk / 0.08)
+    bass = [55, 55, 82.4, 55, 65.4, 55, 98, 82.4]
+    for b in range(int(dur / beat) + 1):
+        at = b * beat
+        put(kick, at, 1.0)
+        hh = rng.standard_normal(int(SR * 0.03)); hh -= np.convolve(hh, np.ones(6) / 6, "same"); put(hh * np.exp(-np.arange(hh.size) / SR / 0.012), at + beat / 2, 0.45)
+        for q in range(2): put(saw(bass[(b * 2 + q) % 8] * 2, beat / 2), at + q * beat / 2, 0.28)
+        if b % 2: [put(saw(f, 0.12), at + beat / 2, 0.1) for f in (523.25, 659.25, 783.99)]
+    return out
+
+
+def _envelope(orig: np.ndarray) -> list:
+    """프레임마다 원본 소리 크기(0~1) → 입 뻥끗에 사용"""
+    hop = SR // FPS
+    rms = np.array([np.sqrt(np.mean(orig[i:i + hop] ** 2)) for i in range(0, len(orig) - hop, hop)])
+    ref = np.percentile(rms[rms > 0], 95) if np.any(rms > 0) else 1.0
+    env = np.clip(rms / ref, 0, 1)
+    sm = np.copy(env)
+    for i in range(1, len(sm)):                                  # 빠르게 열리고 천천히 닫히게
+        sm[i] = env[i] if env[i] > sm[i - 1] else sm[i - 1] * 0.75 + env[i] * 0.25
+    return list(sm) + [0.0] * int((TOTAL - REF_END) * FPS + 2)
+
+
+def _soundtrack(work: Path, ref: Path):
     raw = subprocess.run(["ffmpeg", "-loglevel", "error", "-t", str(REF_END), "-i", str(ref), "-vn", "-ac", "1", "-ar", str(SR), "-f", "f32le", "-"],
                          capture_output=True, check=True).stdout
     orig = np.frombuffer(raw, dtype=np.float32).astype(np.float64)
-    buf = np.zeros(int(SR * TOTAL))
-    n = min(orig.size, buf.size)
-    buf[:n] = orig[:n]
-    fade = int(SR * 0.04); buf[n - fade:n] *= np.linspace(1, 0, fade)          # 원본 끝 '틱' 방지
-    b = _bibik(); i = int(BIBIK * SR); buf[i:i + b.size] += b * 0.35
+    buf = np.zeros(int(SR * TOTAL)); n = min(orig.size, buf.size)
+    buf[:n] = orig[:n]; fade = int(SR * 0.04); buf[n - fade:n] *= np.linspace(1, 0, fade)
+    def put(sig, at, g):
+        i = int(at * SR); k = min(sig.size, buf.size - i)
+        if k > 0: buf[i:i + k] += sig[:k] * g
+    for at in BABY_CHIRPS: put(_bibik(), at, 0.06)                # 아기의 작은 "삐빅"
+    put(_bibik(), 27.55, 0.4)                                       # 마지막 "삐빅!"
+    put(_techno(TOTAL - TECHNO_AT - 0.2), TECHNO_AT, 0.32)
+    buf[int(30.8 * SR):] = 0
     wav = work / "story.wav"
     with wave.open(str(wav), "wb") as w:
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
         w.writeframes((np.clip(buf, -1, 1) * 32767).astype(np.int16).tobytes())
-    return wav
+    return wav, _envelope(orig)
 
 
-def render(ref: str | None = None) -> Path:
+def render(ref: str | None = None, frames: list | None = None) -> Path:
     ref = Path(ref) if ref else REF
     work = OUT / NAME
     work.mkdir(parents=True, exist_ok=True)
-    wav = _soundtrack(work, ref)
+    wav, env = _soundtrack(work, ref)
     from playwright.sync_api import sync_playwright
-    silent = work / "video.mp4"
     with sync_playwright() as p:
         b = p.chromium.launch()
         pg = b.new_page(viewport={"width": W, "height": H})
         pg.on("pageerror", lambda e: print("pageerror:", e))
-        pg.set_content(_page())
+        pg.set_content(_page(env))
+        if frames:                                                  # 미리보기: 지정한 시각만 png로
+            for i, t in enumerate(frames):
+                pg.evaluate(f"render({t})"); pg.screenshot(path=str(work / f"preview_{i:02d}.png"))
+            b.close(); return work
+        silent = work / "video.mp4"
         enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "image2pipe", "-framerate", str(FPS), "-i", "-",
                                 "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p", str(silent)], stdin=subprocess.PIPE)
         for k in range(int(TOTAL * FPS)):
